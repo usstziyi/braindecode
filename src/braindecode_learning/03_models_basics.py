@@ -285,50 +285,78 @@ def tutorial_custom_params():
     n_times = 1000
     sfreq = 250
     
-    # 5. EEGNet 自定义参数
+    # 1. EEGNet 自定义参数
     print("\n1. EEGNet 自定义:")
     model_eegnet = EEGNet(
         n_chans=n_chans,
         n_outputs=n_outputs,
         n_times=n_times,
         sfreq=sfreq,
-        n_filters=8,          # 第一层滤波器数量
-        n_times_filter=32,     # 时间滤波器长度
-        n_pool=4,              # 池化因子
-        activation="relu",     # 激活函数
-        dropout=0.5,           # Dropout 率
+        F1=16,                 # 第一层滤波器数量 (默认 8)
+        D=4,                   # 空间滤波器数量 (默认 2)
+        F2=32,                 # 第二层滤波器数量 (默认 F1*D)
+        kernel_length=32,      # 时间卷积核长度 (默认 64)
+        drop_prob=0.5,         # Dropout 率 (默认 0.25)
     )
     n_params = sum(p.numel() for p in model_eegnet.parameters())
     print(f"   参数数量: {n_params:,}")
     
-    # Deep4Net 自定义参数
+    # 2. Deep4Net 自定义参数
     print("\n2. Deep4Net 自定义:")
     model_deep4 = Deep4Net(
         n_chans=n_chans,
         n_outputs=n_outputs,
         n_times=n_times,
         sfreq=sfreq,
-        final_conv_length="auto",  # 最后卷积层长度
-        pool_mode="max",          # 池化模式: "max" 或 "mean"
-        third_pool_2=True,        # 使用第三次池化
-        dropout=0.5,
+        n_filters_time=40,     # 第一层时间滤波器数 (默认 25)
+        n_filters_spat=40,     # 第一层空间滤波器数 (默认 25)
+        filter_time_length=10, # 时间滤波器长度
+        first_pool_mode="max", # 第一层池化模式
+        later_pool_mode="max", # 后续层池化模式
+        drop_prob=0.5,         # Dropout 率
     )
     n_params = sum(p.numel() for p in model_deep4.parameters())
     print(f"   参数数量: {n_params:,}")
     
-    # ATCNet 自定义参数
+    # 3. ATCNet 自定义参数
     print("\n3. ATCNet 自定义:")
     model_atcnet = ATCNet(
         n_chans=n_chans,
         n_outputs=n_outputs,
         n_times=n_times,
         sfreq=sfreq,
-        n_windows=4,              # 时间窗口数
-        attn_dropout=0.5,         # 注意力 Dropout
-        dropout=0.5,
+        n_windows=4,          # 时间窗口数 (默认 5)
+        att_drop_prob=0.5,     # 注意力 Dropout (默认 0.5)
+        tcn_drop_prob=0.4,     # TCN Dropout (默认 0.3)
+        conv_block_n_filters=32,  # 卷积块滤波器数 (默认 16)
     )
     n_params = sum(p.numel() for p in model_atcnet.parameters())
     print(f"   参数数量: {n_params:,}")
+
+    # 演示 get_config / from_config
+    config = model_eegnet.get_config()
+    for key, value in config.items():
+        print(f"    {key}: {value}")
+    print("=" * 60)
+
+
+    n_chans = 22        # 22 通道 EEG
+    n_outputs = 4       # 4 类运动想象
+    n_times = 1000      # 4 秒 @ 250 Hz
+    sfreq = 250         # 采样频率
+    
+    new_eegnet_model = EEGNet(
+        n_chans=n_chans,
+        n_outputs=n_outputs,
+        n_times=n_times,
+        sfreq=sfreq,
+    )
+
+    config = new_eegnet_model.get_config()
+    for key, value in config.items():
+        print(f"    {key}: {value}")
+
+
 
 
 # ============================================================
@@ -396,8 +424,8 @@ def tutorial_model_selection():
 if __name__ == "__main__":
     # tutorial_model_overview()
     # tutorial_build_models()
-    tutorial_forward_pass()
-    # tutorial_custom_params()
+    # tutorial_forward_pass()
+    tutorial_custom_params()
     # tutorial_model_selection()
     
     # print("\n" + "=" * 60)
