@@ -241,26 +241,9 @@ def tutorial_forward_pass():
     sfreq = 250
     batch_size = 8
     
-    # 构建模型
-    model = EEGNet(
-        n_chans=n_chans,
-        n_outputs=n_outputs,
-        n_times=n_times,
-        sfreq=sfreq,
-    )
-    
     # 创建模拟输入
     x = torch.randn(batch_size, n_chans, n_times)
     print(f"\n输入形状: {x.shape}  [batch, channels, time]")
-    
-    # 前向传播
-    model.eval()  # 切换到评估模式
-    with torch.no_grad():
-        output = model(x)
-    
-    print(f"输出形状: {output.shape}  [batch, classes]")
-    print(f"输出值: {output}")
-    print(f"预测类别: {output.argmax(dim=1)}")
     
     # 不同模型的前向传播
     models_to_test = [
@@ -270,11 +253,13 @@ def tutorial_forward_pass():
     ]
     
     print("\n不同模型的输出:")
+    print(f"  {'模型':<20} {'输入形状':<25} {'输出形状':<20}")
+    print(f"  {'─'*20} {'─'*25} {'─'*20}")
     for name, m in models_to_test:
         m.eval()
         with torch.no_grad():
             out = m(x)
-        print(f"  {name}: input={x.shape} -> output={out.shape}")
+        print(f"  {name:<20} {str(x.shape):<25} {str(out.shape):<20}")
 
 
 # ============================================================
@@ -410,8 +395,8 @@ def tutorial_model_selection():
 
 if __name__ == "__main__":
     # tutorial_model_overview()
-    tutorial_build_models()
-    # tutorial_forward_pass()
+    # tutorial_build_models()
+    tutorial_forward_pass()
     # tutorial_custom_params()
     # tutorial_model_selection()
     
