@@ -14,5 +14,5 @@ dependencies = [
     "pandas>=2.0.0",
     "h5py>=3.9.0",
     "tqdm>=4.65.0",
-    "braindecode[moabb,visualization]==1.5.0",
+    "braindecode[moabb,visualization,hub]==1.5.0",
 ]

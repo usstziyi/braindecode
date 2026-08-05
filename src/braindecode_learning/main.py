@@ -66,7 +66,7 @@ class Config:
     RANDOM_SEED = 42
     
     # 模型参数
-    MODEL_NAME = "EEGNetv4"
+    MODEL_NAME = "EEGNet"
     LEARNING_RATE = 0.001
     BATCH_SIZE = 64
     N_EPOCHS = 10
@@ -242,15 +242,14 @@ def step4_build_model():
     print("\n" + "=" * 60)
     print("STEP 4: 模型构建")
     print("=" * 60)
-    
-    from braindecode.models import EEGNetv4
+    from braindecode.models import EEGNet
     
     print(f"构建模型: {Config.MODEL_NAME}")
     print(f"  - 输入通道: {Config.N_CHANNELS}")
     print(f"  - 输出类别: {Config.N_CLASSES}")
     print(f"  - 时间点数: {Config.WINDOW_SAMPLES}")
-    
-    model = EEGNetv4(
+    # 实例化模型
+    model = EEGNet( 
         n_chans=Config.N_CHANNELS,
         n_outputs=Config.N_CLASSES,
         n_times=Config.WINDOW_SAMPLES,
@@ -579,7 +578,7 @@ def main():
     print("╠══════════════════════════════════════════════════════════╣")
     print("║  数据集: BCI Competition IV Dataset 2a                  ║")
     print("║  任务:   4 类运动想象分类                               ║")
-    print("║  模型:   EEGNetv4                                       ║")
+    print("║  模型:   EEGNet                                        ║")
     print("╚══════════════════════════════════════════════════════════╝")
     
     # 打印配置

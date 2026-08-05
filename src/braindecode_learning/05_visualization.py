@@ -36,7 +36,7 @@ from braindecode.preprocessing import (
     Preprocessor,
     create_windows_from_events,
 )
-from braindecode.models import EEGNetv4
+from braindecode.models import EEGNet
 
 
 # ============================================================

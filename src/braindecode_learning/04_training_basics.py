@@ -23,7 +23,7 @@ from braindecode.preprocessing import (
     Preprocessor,
     create_windows_from_events,
 )
-from braindecode.models import EEGNetv4, ShallowFBCSPNet
+from braindecode.models import EEGNet, ShallowFBCSPNet
 
 # EEGClassifier / EEGRegressor 导入 (兼容不同版本)
 try:
@@ -101,7 +101,7 @@ def tutorial_eegclassifier_basic():
     
     # 2. 构建模型
     print("\n2. 构建模型...")
-    model = EEGNetv4(
+    model = EEGNet(
         n_chans=22,
         n_outputs=4,
         n_times=512,
@@ -180,7 +180,7 @@ def tutorial_manual_training():
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     
     # 模型
-    model = EEGNetv4(n_chans=22, n_outputs=4, n_times=512)
+    model = EEGNet(n_chans=22, n_outputs=4, n_times=512)
     
     # 损失函数和优化器
     criterion = torch.nn.CrossEntropyLoss()
