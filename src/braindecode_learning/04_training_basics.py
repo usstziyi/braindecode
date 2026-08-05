@@ -71,7 +71,7 @@ def tutorial_eegclassifier_basic():
         PickTypes(eeg=True, verbose=False),
         Filter(l_freq=4, h_freq=40.0, verbose=False),
         Rescale(scalings=1e6, verbose=False),
-        Preprocessor(exponential_moving_standardize),
+        # Preprocessor(exponential_moving_standardize),
     ]
     dataset = preprocess(dataset, preprocessors)
 
