@@ -20,21 +20,16 @@ from torch.utils.data import DataLoader
 from braindecode.datasets import MOABBDataset
 from braindecode.preprocessing import (
     preprocess,
+    Filter,
+    Resample,
+    PickTypes,
+    Rescale,
     Preprocessor,
+    exponential_moving_standardize,
     create_windows_from_events,
 )
 from braindecode.models import EEGNet, ShallowFBCSPNet
-
-# EEGClassifier / EEGRegressor 导入 (兼容不同版本)
-try:
-    from braindecode import EEGClassifier, EEGRegressor
-except ImportError:
-    try:
-        from braindecode.classifier import EEGClassifier
-        from braindecode.regressor import EEGRegressor
-    except ImportError:
-        EEGClassifier = None
-        EEGRegressor = None
+from braindecode import EEGClassifier, EEGRegressor
 
 
 # ============================================================
@@ -54,7 +49,7 @@ def tutorial_eegclassifier_basic():
     - model: Braindecode 模型
     - lr: 学习率
     - batch_size: 批量大小
-    - n_epochs: 训练轮数
+    - max_epochs: 训练轮数
     - device: 设备 (cpu/cuda)
     - callbacks: 回调函数列表
     """
@@ -73,10 +68,13 @@ def tutorial_eegclassifier_basic():
     
     # 预处理
     preprocessors = [
-        Preprocessor("filter", l_freq=0.5, h_freq=40.0, verbose=False),
-        Preprocessor("resample", sfreq=128, verbose=False),
+        PickTypes(eeg=True, verbose=False),
+        Filter(l_freq=4, h_freq=40.0, verbose=False),
+        Rescale(scalings=1e6, verbose=False),
+        Preprocessor(exponential_moving_standardize),
     ]
     dataset = preprocess(dataset, preprocessors)
+
     
     # 窗口化
     windows_dataset = create_windows_from_events(
@@ -86,7 +84,9 @@ def tutorial_eegclassifier_basic():
         window_size_samples=512,
         window_stride_samples=128,
         preload=True,
-    )
+    ) # 每条记录是一个窗口
+
+
     
     # 划分数据集
     generator = torch.Generator().manual_seed(42)
@@ -105,29 +105,47 @@ def tutorial_eegclassifier_basic():
         n_chans=22,
         n_outputs=4,
         n_times=512,
+        sfreq=250,
     )
+
+
+    # 查看模型配置
+    print("\n2.1 模型配置:")
+    config = model.get_config()
+    for key, value in config.items():
+        print(f"    {key}: {value}")
     
     # 3. 创建 EEGClassifier
     print("\n3. 创建 EEGClassifier...")
     classifier = EEGClassifier(
-        model=model,
+        model,
         lr=0.001,
         batch_size=64,
-        n_epochs=2,  # 只用 2 轮演示
-        device="cpu",
+        max_epochs=20,  # 只用 2 轮演示
+        device="mps",
+        train_split=None,  # 不使用内置验证拆分, 手动管理
     )
-    
     # 4. 训练
     print("\n4. 开始训练...")
-    classifier.fit(
-        train_dataset,
-        val_dataset=val_dataset,
-    )
+    classifier.fit(train_dataset)
     
     # 5. 评估
     print("\n5. 评估模型...")
-    train_score = classifier.score(train_dataset)
-    val_score = classifier.score(val_dataset)
+    
+    # score() 来自 sklearn.ClassifierMixin, 需要 (X, y) 参数
+    # WindowsDataset 返回 (x, y, idx), 需要提取
+    def dataset_to_xy(dataset):
+        X, y = [], []
+        for x_i, y_i, _ in dataset:
+            X.append(x_i)
+            y.append(y_i)
+        return np.array(X), np.array(y)
+    
+    X_train, y_train = dataset_to_xy(train_dataset)
+    X_val, y_val = dataset_to_xy(val_dataset)
+    
+    train_score = classifier.score(X_train, y_train)
+    val_score = classifier.score(X_val, y_val)
     
     print(f"   训练集准确率: {train_score:.4f}")
     print(f"   验证集准确率: {val_score:.4f}")
@@ -153,8 +171,11 @@ def tutorial_manual_training():
     # 准备数据
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     preprocessors = [
-        Preprocessor("filter", l_freq=0.5, h_freq=40.0, verbose=False),
-        Preprocessor("resample", sfreq=128, verbose=False),
+        PickTypes(eeg=True, verbose=False),
+        Filter(l_freq=4, h_freq=40.0, verbose=False),
+        Rescale(scalings=1e6, verbose=False),
+        Preprocessor(exponential_moving_standardize),
+        Resample(sfreq=128, verbose=False),
     ]
     dataset = preprocess(dataset, preprocessors)
     
@@ -180,7 +201,7 @@ def tutorial_manual_training():
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     
     # 模型
-    model = EEGNet(n_chans=22, n_outputs=4, n_times=512)
+    model = EEGNet(n_chans=22, n_outputs=4, n_times=512, sfreq=128)
     
     # 损失函数和优化器
     criterion = torch.nn.CrossEntropyLoss()
@@ -374,7 +395,7 @@ classifier = EEGClassifier(
     model=model,
     lr=0.001,
     batch_size=64,
-    n_epochs=100,
+    max_epochs=100,
     callbacks=callbacks,
 )
 ```
@@ -456,17 +477,17 @@ def tutorial_save_load():
 
 if __name__ == "__main__":
     tutorial_eegclassifier_basic()
-    tutorial_manual_training()
-    tutorial_evaluation_metrics()
-    tutorial_callbacks()
-    tutorial_save_load()
+    # tutorial_manual_training()
+    # tutorial_evaluation_metrics()
+    # tutorial_callbacks()
+    # tutorial_save_load()
     
-    print("\n" + "=" * 60)
-    print("🎉 第04章完成! 你已经学会了:")
-    print("  ✅ EEGClassifier 使用")
-    print("  ✅ 手动训练循环")
-    print("  ✅ 评估指标")
-    print("  ✅ 回调函数")
-    print("  ✅ 模型保存与加载")
-    print("\n进入 05_visualization.py 学习可视化!")
-    print("=" * 60)
+    # print("\n" + "=" * 60)
+    # print("🎉 第04章完成! 你已经学会了:")
+    # print("  ✅ EEGClassifier 使用")
+    # print("  ✅ 手动训练循环")
+    # print("  ✅ 评估指标")
+    # print("  ✅ 回调函数")
+    # print("  ✅ 模型保存与加载")
+    # print("\n进入 05_visualization.py 学习可视化!")
+    # print("=" * 60)
