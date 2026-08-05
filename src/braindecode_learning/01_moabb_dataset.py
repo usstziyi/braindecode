@@ -42,9 +42,13 @@ def tutorial_moabb_basic():
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     
     print(f"\n数据集类型: {type(dataset)}")
+    # 每个被试的 RawDataset 的长度累计和
+    # 9 * 2 * 6 = 108 （run）
+    # 108 * 250 * 386.94 = 10447380 (时间点数)
     print(f"数据集大小: {len(dataset.datasets)} 个被试 (共 {len(dataset)} 个时间点)")
     print(f"\n数据集信息:")
-    print(dataset.description)  # 打印数据集元信息
+    # 打印数据集元信息
+    print(dataset.description)  
 
 
 def tutorial_data_inspection():
@@ -292,19 +296,19 @@ Braindecode 支持的数据集类型:
 if __name__ == "__main__":
     # 运行所有教程
     tutorial_moabb_basic()
-    tutorial_data_inspection()
-    tutorial_windowing()
-    tutorial_dataloader()
-    tutorial_data_split()
-    tutorial_other_datasets()
+    # tutorial_data_inspection()
+    # tutorial_windowing()
+    # tutorial_dataloader()
+    # tutorial_data_split()
+    # tutorial_other_datasets()
     
-    print("\n" + "=" * 60)
-    print("🎉 第01章完成! 你已经学会了:")
-    print("  ✅ MOABB 数据集加载")
-    print("  ✅ 数据检查与可视化")
-    print("  ✅ 数据窗口化")
-    print("  ✅ DataLoader 使用")
-    print("  ✅ 数据集划分")
-    print("  ✅ 其他数据集类型")
-    print("\n进入 02_preprocessing.py 学习数据预处理!")
-    print("=" * 60)
+    # print("\n" + "=" * 60)
+    # print("🎉 第01章完成! 你已经学会了:")
+    # print("  ✅ MOABB 数据集加载")
+    # print("  ✅ 数据检查与可视化")
+    # print("  ✅ 数据窗口化")
+    # print("  ✅ DataLoader 使用")
+    # print("  ✅ 数据集划分")
+    # print("  ✅ 其他数据集类型")
+    # print("\n进入 02_preprocessing.py 学习数据预处理!")
+    # print("=" * 60)
