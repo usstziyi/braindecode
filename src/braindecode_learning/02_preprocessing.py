@@ -213,10 +213,10 @@ def tutorial_preprocess_pipeline():
     # 加载数据
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     
-    print(f"\n原始数据集大小: {len(dataset.datasets)} 个被试")
+    print(f"\n原始数据集大小: {len(dataset.datasets)} 个记录 (run)")
     
     # 定义预处理步骤
-    # preprocess() 会对所有被试应用相同的预处理
+    # preprocess() 会对所有记录 (run) 应用相同的预处理
     preprocessors = [
         # 1. 带通滤波: 0.5-40 Hz
         Preprocessor("filter", l_freq=0.5, h_freq=40.0),
@@ -233,7 +233,7 @@ def tutorial_preprocess_pipeline():
     dataset_preprocessed = preprocess(dataset, preprocessors)
     
     print(f"预处理完成!")
-    print(f"  - 数据集大小: {len(dataset_preprocessed.datasets)} 个被试")
+    print(f"  - 数据集大小: {len(dataset_preprocessed.datasets)} 个记录 (run)")
     
     # 窗口化
     windows_dataset = create_windows_from_events(

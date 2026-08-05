@@ -112,12 +112,12 @@ def step1_load_data():
     dataset = MOABBDataset(dataset_name=Config.DATASET_NAME)
     
     print(f"  ✅ 加载完成")
-    print(f"     - 被试数量: {len(dataset.datasets)}")
+    print(f"     - 记录数量 (run): {len(dataset.datasets)}")
     print(f"     - 数据类型: {type(dataset)}")
     
     # 查看数据信息
-    subject_0 = dataset.datasets[0]
-    raw = subject_0.raw
+    run_0 = dataset.datasets[0]
+    raw = run_0.raw
     print(f"     - 通道数: {len(raw.ch_names)}")
     print(f"     - 采样率: {raw.info['sfreq']} Hz")
     print(f"     - 时长: {raw.n_times / raw.info['sfreq']:.1f}s")

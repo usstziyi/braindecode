@@ -42,10 +42,10 @@ def tutorial_moabb_basic():
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     
     print(f"\n数据集类型: {type(dataset)}")
-    # 每个被试的 RawDataset 的长度累计和
+    # 每个记录 (run) 的 RawDataset 的长度累计和
     # 9 * 2 * 6 = 108 （run）
     # 108 * 250 * 386.94 = 10447380 (时间点数)
-    print(f"数据集大小: {len(dataset.datasets)} 个被试 (共 {len(dataset)} 个时间点)")
+    print(f"数据集大小: {len(dataset.datasets)} 个记录 (run) (共 {len(dataset)} 个时间点)")
     print(f"\n数据集信息:")
     # 打印数据集元信息
     # print(dataset.description)  
@@ -63,15 +63,15 @@ def tutorial_data_inspection():
     print("教程 1.2: 数据检查")
     print("=" * 60)
     
-    dataset = MOABBDataset(dataset_name="BNCI2014_001",subject_ids=[1])
+    dataset = MOABBDataset(dataset_name="BNCI2014_001")
     
-    # 查看第一个被试的数据
-    subject_0 = dataset.datasets[0]
-    print(f"\n被试 0 类型: {type(subject_0)}")
-    print(f"被试 0 描述: {subject_0.description}")
+    # 查看第一个记录 (run) 的数据
+    run_0 = dataset.datasets[0]
+    print(f"\n记录 0 类型: {type(run_0)}")
+    print(f"记录 0 描述: {run_0.description}")
     
     # 获取 MNE Raw 对象
-    raw = subject_0.raw
+    raw = run_0.raw
     print(f"\n原始数据信息:")
     print(f"  - 通道数: {len(raw.ch_names)}")
     print(f"  - 通道名: {raw.ch_names[:5]}...")
@@ -103,7 +103,7 @@ def tutorial_windowing():
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     
     # 查看事件信息
-    # 取第一个被试的数据
+    # 取第一个记录 (run) 的数据
     raw = dataset.datasets[0].raw
     """
         events 数组:
@@ -244,22 +244,22 @@ def tutorial_data_split():
     
     print(f"\n按 session 划分:")
     for split_name, split_ds in splits.items():
-        print(f"  {split_name}: {len(split_ds.datasets)} 个被试, {len(split_ds)} 个时间点")
+        print(f"  {split_name}: {len(split_ds.datasets)} 个run, {len(split_ds)} 个时间点")
     
     # 方法2: 按 subject 划分 (跨被试评估)
     splits_by_subject = dataset.split(by="subject")
     print(f"\n按 subject 划分:")
     for split_name, split_ds in list(splits_by_subject.items())[:3]:
-        print(f"  Subject {split_name}: {len(split_ds.datasets)} 个记录")
-    print(f"  ... 共 {len(splits_by_subject)} 个被试分组")
-    
+        print(f"  Subject {split_name}: {len(split_ds.datasets)} 个run")
+    print(f"  ... 共 {len(splits_by_subject)} 个subject分组")
+
     # 方法3: 窗口化后按比例随机划分
     windows_dataset = create_windows_from_events(
         dataset,
         trial_start_offset_samples=0,
         trial_stop_offset_samples=0,
-        window_size_samples=1000,
-        window_stride_samples=250,
+        window_size_samples=1000,      # 决定窗口大小
+        window_stride_samples=1000,    # 决定窗口步长
         preload=True,
     )
     
@@ -332,9 +332,9 @@ if __name__ == "__main__":
     # 运行所有教程
     # tutorial_moabb_basic()
     # tutorial_data_inspection()
-    tutorial_windowing()
+    # tutorial_windowing()
     # tutorial_dataloader()
-    # tutorial_data_split()
+    tutorial_data_split()
     # tutorial_other_datasets()
     
     # print("\n" + "=" * 60)
