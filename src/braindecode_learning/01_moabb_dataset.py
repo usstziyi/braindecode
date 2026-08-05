@@ -48,7 +48,7 @@ def tutorial_moabb_basic():
     print(f"数据集大小: {len(dataset.datasets)} 个被试 (共 {len(dataset)} 个时间点)")
     print(f"\n数据集信息:")
     # 打印数据集元信息
-    print(dataset.description)  
+    # print(dataset.description)  
 
 
 def tutorial_data_inspection():
@@ -63,7 +63,7 @@ def tutorial_data_inspection():
     print("教程 1.2: 数据检查")
     print("=" * 60)
     
-    dataset = MOABBDataset(dataset_name="BNCI2014_001")
+    dataset = MOABBDataset(dataset_name="BNCI2014_001",subject_ids=[1])
     
     # 查看第一个被试的数据
     subject_0 = dataset.datasets[0]
@@ -103,29 +103,64 @@ def tutorial_windowing():
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     
     # 查看事件信息
+    # 取第一个被试的数据
     raw = dataset.datasets[0].raw
-    stim_channels = mne.utils._get_stim_channel(None, raw.info, raise_error=False)
-    stim_channel = stim_channels[0] if stim_channels else None
-    if stim_channel:
-        events = mne.find_events(raw, stim_channel=stim_channel)
-        print(f"  - 刺激通道: {stim_channel}")
-    else:
-        events = mne.find_events(raw)
-    event_id = dataset.datasets[0].description.get("event_id", None)
+    """
+        events 数组:
+                列0    列1    列2
+                [位置]  [前值]  [event_id]
+        行0  →   [3,      0,      1    ]   ← event_id = 1
+        行1  →   [6,      1,      2    ]   ← event_id = 2  
+        行2  →   [9,      2,      1    ]   ← event_id = 1
+        events[:, 2] → [1, 2, 1]   # 取出第2列的所有值
+    """
+    # stim_channels = mne.utils._get_stim_channel(None, raw.info, raise_error=False)
+    # # 选择第一个刺激通道，如果没有刺激通道则设为 None，用于后续事件检测
+    # stim_channel = stim_channels[0] if stim_channels else None
+    # if stim_channel:
+    #     print(f"  - 刺激通道: {stim_channel}")
+    #     # events shape(事件数量, 3)
+    #     events = mne.find_events(raw, stim_channel=stim_channel)
+    #     print(f"\n事件数量: {len(events)}")
+    #     print(f"事件类型: {np.unique(events[:, 2])}") # 选取最后一列，即事件类型
+    # else:
+    #     print("  - 无刺激通道，事件存储在 annotations 中")
+    #     events, event_id = mne.events_from_annotations(raw)
+    #     print(f"  - 事件ID映射: {event_id}")
+    #     print(f"\n事件数量: {len(events)}")
+    #     print(f"事件类型: {np.unique(events[:, 2])}") # 选取最后一列，即事件类型
     
-    print(f"\n事件数量: {len(events)}")
-    print(f"事件类型: {np.unique(events[:, 2])}")
-    if event_id:
-        print(f"事件ID映射: {event_id}")
-    
+
+    """
+    时间轴:
+    0s        2s              6s        8s
+    ┌─────────┬───────────────┬─────────┐
+    │ 提示期   │   想象期       │  休息期  │
+    │  (cue)  │ (imagination) │  (rest) │
+    └─────────┴───────────────┴─────────┘
+        ↑
+    stim 上升沿
+    (事件触发点)
+    """
+    # 打印 annotations 信息
+    ann = raw.annotations
+    print(f"\n{'='*60}")
+    print(f"  Annotations 信息 (共 {len(ann)} 个事件)")
+    print(f"{'='*60}")
+    print(f"  {'#':<4} {'Description':<20} {'Onset (s)':<12} {'Duration (s)':<12}")
+    print(f"  {'─'*4} {'─'*20} {'─'*12} {'─'*12}")
+    for i, a in enumerate(ann):
+        print(f"  {i:<4} {a['description']:<20} {a['onset']:<12.2f} {a['duration']:<12.2f}")
+    print(f"{'='*60}")
+ 
     # 创建窗口数据集
     windows_dataset = create_windows_from_events(
         dataset,
-        trial_start_offset_samples=0,     # 从事件开始位置切分
-        trial_stop_offset_samples=0,       # 到事件结束位置
+        trial_start_offset_samples=0,      # 这两个参数是 braindecode 自己的 ，用来 微调 从 annotations 获取的边界
+        trial_stop_offset_samples=0,       # annotations 是moabb在raw上附加的切片
         window_size_samples=1000,          # 窗口大小: 1000 采样点 = 4秒
-        window_stride_samples=250,         # 步长: 250 采样点 = 1秒
-        mapping=None,                       # 标签映射 (可选)
+        window_stride_samples=1000,        # 步长: 1000 采样点 = 1步
+        mapping=None,                      # 标签映射 (可选)
         preload=True,
     )
     
@@ -161,9 +196,9 @@ def tutorial_dataloader():
     windows_dataset = create_windows_from_events(
         dataset,
         trial_start_offset_samples=0,
-        trial_stop_offset_samples=0,
+        trial_stop_offset_samples=0, 
         window_size_samples=1000,
-        window_stride_samples=250,
+        window_stride_samples=1000,
         preload=True,
     )
     
@@ -295,9 +330,9 @@ Braindecode 支持的数据集类型:
 
 if __name__ == "__main__":
     # 运行所有教程
-    tutorial_moabb_basic()
+    # tutorial_moabb_basic()
     # tutorial_data_inspection()
-    # tutorial_windowing()
+    tutorial_windowing()
     # tutorial_dataloader()
     # tutorial_data_split()
     # tutorial_other_datasets()
