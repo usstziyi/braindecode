@@ -28,7 +28,6 @@ from braindecode.preprocessing import (
 # ============================================================
 # 1. 数据滤波
 # ============================================================
-
 def tutorial_filtering():
     """
     滤波: 去除噪声和伪迹
@@ -49,7 +48,7 @@ def tutorial_filtering():
     
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     
-    # 获取原始数据
+    # 获取原始数据：被试1,session0,run0
     raw = dataset.datasets[0].raw.copy()
     
     print(f"\n滤波前:")
@@ -62,16 +61,24 @@ def tutorial_filtering():
     
     print(f"\n带通滤波后 (0.5-40 Hz):")
     print(f"  - 数据范围: {raw_filtered.get_data().min():.4f} ~ {raw_filtered.get_data().max():.4f}")
-    
+
     # 方法2: 使用 braindecode Preprocessor
     # Preprocessor 可以链式应用多个预处理步骤
-    from braindecode.preprocessing import Preprocessor
+    from braindecode.preprocessing import (
+        PickTypes,   # 选择 EEG 通道
+        Filter,      # 带通滤波
+        NotchFilter, # 陷波滤波
+        Resample,    # 降采样到 128 Hz
+        Rescale,     # 转换为伏特（数据从微伏转为伏特）
+        SetEEGReference, # 设置平均参考
+    )
     
     raw_preprocessed = raw.copy()
     
     # 定义预处理步骤
     preprocessors = [
-        Preprocessor("filter", l_freq=0.5, h_freq=40.0),
+        Filter(l_freq=0.5, h_freq=40.0, verbose=False),
+        NotchFilter(freqs=[50], verbose=False),
     ]
     
     # 应用预处理
@@ -80,14 +87,6 @@ def tutorial_filtering():
     
     print(f"\n使用 Preprocessor 滤波后:")
     print(f"  - 数据范围: {raw_preprocessed.get_data().min():.4f} ~ {raw_preprocessed.get_data().max():.4f}")
-    
-    # 陷波滤波 (去除工频)
-    raw_notch = raw.copy()
-    raw_notch.notch_filter(freqs=[50], verbose=False)
-    
-    print(f"\n陷波滤波后 (50 Hz):")
-    print(f"  - 数据范围: {raw_notch.get_data().min():.4f} ~ {raw_notch.get_data().max():.4f}")
-
 
 # ============================================================
 # 2. 重采样
@@ -219,9 +218,9 @@ def tutorial_preprocess_pipeline():
     # preprocess() 会对所有记录 (run) 应用相同的预处理
     preprocessors = [
         # 1. 带通滤波: 0.5-40 Hz
-        Preprocessor("filter", l_freq=0.5, h_freq=40.0),
+        Preprocessor("filter", l_freq=0.5, h_freq=40.0, verbose=False),
         # 2. 陷波滤波: 去除 50 Hz 工频
-        Preprocessor("notch_filter", freqs=[50]),
+        Preprocessor("notch_filter", freqs=[50], verbose=False),
         # 3. 重采样到 128 Hz
         Preprocessor("resample", sfreq=128),
         # 4. EMA 标准化 (使用 numpy 数组上的指数移动平均)
@@ -322,17 +321,17 @@ def tutorial_preprocessor_options():
 
 if __name__ == "__main__":
     tutorial_filtering()
-    tutorial_resampling()
-    tutorial_standardization()
-    tutorial_preprocess_pipeline()
-    tutorial_preprocessor_options()
+    # tutorial_resampling()
+    # tutorial_standardization()
+    # tutorial_preprocess_pipeline()
+    # tutorial_preprocessor_options()
     
-    print("\n" + "=" * 60)
-    print("🎉 第02章完成! 你已经学会了:")
-    print("  ✅ 数据滤波 (带通、陷波)")
-    print("  ✅ 重采样")
-    print("  ✅ 数据标准化 (Z-Score, EMA)")
-    print("  ✅ 完整预处理流水线")
-    print("  ✅ Preprocessor 选项")
-    print("\n进入 03_models_basics.py 学习模型!")
-    print("=" * 60)
+    # print("\n" + "=" * 60)
+    # print("🎉 第02章完成! 你已经学会了:")
+    # print("  ✅ 数据滤波 (带通、陷波)")
+    # print("  ✅ 重采样")
+    # print("  ✅ 数据标准化 (Z-Score, EMA)")
+    # print("  ✅ 完整预处理流水线")
+    # print("  ✅ Preprocessor 选项")
+    # print("\n进入 03_models_basics.py 学习模型!")
+    # print("=" * 60)
