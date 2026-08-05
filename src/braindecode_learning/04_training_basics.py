@@ -71,7 +71,8 @@ def tutorial_eegclassifier_basic():
         PickTypes(eeg=True, verbose=False),
         Filter(l_freq=4, h_freq=40.0, verbose=False),
         Rescale(scalings=1e6, verbose=False),
-        # Preprocessor(exponential_moving_standardize),
+        # Resample(128, verbose=False),
+        Preprocessor(exponential_moving_standardize),
     ]
     dataset = preprocess(dataset, preprocessors)
 
@@ -81,11 +82,10 @@ def tutorial_eegclassifier_basic():
         dataset,
         trial_start_offset_samples=0,
         trial_stop_offset_samples=0,
-        window_size_samples=512,
-        window_stride_samples=128,
+        window_size_samples=1000,
+        window_stride_samples=1000,
         preload=True,
     ) # 每条记录是一个窗口
-
 
     
     # 划分数据集
@@ -104,7 +104,7 @@ def tutorial_eegclassifier_basic():
     model = EEGNet(
         n_chans=22,
         n_outputs=4,
-        n_times=512,
+        n_times=1000,
         sfreq=250,
     )
 
