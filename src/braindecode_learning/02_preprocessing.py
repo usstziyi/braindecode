@@ -20,6 +20,11 @@ from braindecode.datasets import MOABBDataset
 from braindecode.preprocessing import (
     preprocess,
     Preprocessor,
+    PickTypes,
+    DropChannels,
+    Filter,
+    NotchFilter,
+    Resample,
     create_windows_from_events,
     exponential_moving_standardize,
 )
@@ -109,7 +114,7 @@ def tutorial_resampling():
     print("=" * 60)
     
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
-    raw = dataset.datasets[0].raw.copy()
+    raw = dataset.datasets[0].raw.copy()  # subject1, session0, run0
     
     print(f"\n原始采样率: {raw.info['sfreq']} Hz")
     print(f"原始数据点数: {raw.n_times}")
@@ -151,7 +156,7 @@ def tutorial_standardization():
     print("=" * 60)
     
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
-    raw = dataset.datasets[0].raw.copy()
+    raw = dataset.datasets[0].raw.copy() # subject1, session0, run0
     
     # 先进行滤波和重采样
     raw_prep = raw.copy()
@@ -177,10 +182,15 @@ def tutorial_standardization():
     print(f"  - 最小值: {data_zscore.min():.6f}")
     print(f"  - 最大值: {data_zscore.max():.6f}")
     
-    # 方法2: 指数移动平均标准化
+    # 方法2: 指数移动平均 标准化
+    # EMA 标准化让每个时刻的样本只和 近期历史 比较，而不是和整段数据比较，从而消除这种慢变干扰，
+    # 同时保留真正的神经活动信号。
+    # braindecode 中处理非平稳 EEG 信号的核心方法
     # exponential_moving_standardize 应用到 numpy 数组
     data_ema = exponential_moving_standardize(
-        data, factor_new=0.001, init_block_size=None
+        data,                        # 输入数据 (numpy 数组), 形状为 [通道数, 时间点数]
+        factor_new=0.001,            # EMA 新数据因子, 控制指数衰减速度; 值越小, 历史数据权重越大, 标准化越平滑
+        init_block_size=None         # 初始化块大小; None 表示使用全部数据计算初始均值/标准差, 也可指定整数 N 仅使用前 N 个样本初始化
     )
     
     print(f"\nEMA 标准化后:")
@@ -211,28 +221,25 @@ def tutorial_preprocess_pipeline():
     
     # 加载数据
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
-    
     print(f"\n原始数据集大小: {len(dataset.datasets)} 个记录 (run)")
     
     # 定义预处理步骤
     # preprocess() 会对所有记录 (run) 应用相同的预处理
     preprocessors = [
-        # 1. 带通滤波: 0.5-40 Hz
-        Preprocessor("filter", l_freq=0.5, h_freq=40.0, verbose=False),
-        # 2. 陷波滤波: 去除 50 Hz 工频
-        Preprocessor("notch_filter", freqs=[50], verbose=False),
-        # 3. 重采样到 128 Hz
-        Preprocessor("resample", sfreq=128),
-        # 4. EMA 标准化 (使用 numpy 数组上的指数移动平均)
+        Filter(l_freq=0.5, h_freq=40.0, verbose=False),
+        NotchFilter(freqs=[50], verbose=False),
+        Resample(sfreq=128, verbose=False),
         Preprocessor(exponential_moving_standardize),
     ]
     
     # 应用预处理
     print("\n应用预处理步骤...")
     dataset_preprocessed = preprocess(dataset, preprocessors)
+    # preprocess() 内部就是循环调用 prep.apply(raw) ，外加进度条和自动 load_data
     
     print(f"预处理完成!")
     print(f"  - 数据集大小: {len(dataset_preprocessed.datasets)} 个记录 (run)")
+
     
     # 窗口化
     windows_dataset = create_windows_from_events(
@@ -248,7 +255,7 @@ def tutorial_preprocess_pipeline():
     print(f"  - 窗口数量: {len(windows_dataset)}")
     
     # 查看样本
-    sample = windows_dataset[0]
+    sample = windows_dataset[0] # subject1, session0, run0, trial0, window0
     if isinstance(sample, (list, tuple)):
         X, y = sample[0], sample[1]
         print(f"  - 输入形状: {X.shape}  [channels, time]")
@@ -287,18 +294,17 @@ def tutorial_preprocessor_options():
     
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     
-    raw = dataset.datasets[0].raw.copy()
+    raw = dataset.datasets[0].raw.copy() # subject1, session0, run0
     print(f"\n原始通道数: {len(raw.ch_names)}")
     print(f"原始通道: {raw.ch_names}")
     
     # 选择特定通道
     preprocessors = [
-        # 只保留 EEG 通道
-        Preprocessor("pick", picks="eeg"),
+        PickTypes(eeg=True, verbose=False),
     ]
     
     for prep in preprocessors:
-        raw = prep.apply(raw)
+        raw = prep.apply(raw) # 只处理单个raw, 不处理整个数据集
     
     print(f"\n只保留 EEG 通道后:")
     print(f"  - 通道数: {len(raw.ch_names)}")
@@ -309,22 +315,23 @@ def tutorial_preprocessor_options():
     stim_channels = mne.utils._get_stim_channel(None, raw_2.info, raise_error=False)
     if stim_channels:
         preprocessors_2 = [
-            Preprocessor("drop_channels", ch_names=[stim_channels[0]]),
+            DropChannels(ch_names=stim_channels),
         ]
         for prep in preprocessors_2:
             raw_2 = prep.apply(raw_2)
-        print(f"\n丢弃刺激通道 ({stim_channels[0]}) 后:")
+        print(f"\n丢弃刺激通道 ({stim_channels}) 后:")
     else:
         print(f"\n无刺激通道可丢弃")
     print(f"  - 通道数: {len(raw_2.ch_names)}")
+    print(f"  - 通道: {raw_2.ch_names}")
 
 
 if __name__ == "__main__":
-    tutorial_filtering()
+    # tutorial_filtering()
     # tutorial_resampling()
     # tutorial_standardization()
     # tutorial_preprocess_pipeline()
-    # tutorial_preprocessor_options()
+    tutorial_preprocessor_options()
     
     # print("\n" + "=" * 60)
     # print("🎉 第02章完成! 你已经学会了:")
