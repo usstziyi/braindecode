@@ -73,7 +73,7 @@ def tutorial_eegclassifier_basic():
     
     # 预处理
     preprocessors = [
-        Preprocessor("filter", l_freq=0.5, h_freq=40.0),
+        Preprocessor("filter", l_freq=0.5, h_freq=40.0, verbose=False),
         Preprocessor("resample", sfreq=128),
     ]
     dataset = preprocess(dataset, preprocessors)
@@ -153,7 +153,7 @@ def tutorial_manual_training():
     # 准备数据
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
     preprocessors = [
-        Preprocessor("filter", l_freq=0.5, h_freq=40.0),
+        Preprocessor("filter", l_freq=0.5, h_freq=40.0, verbose=False),
         Preprocessor("resample", sfreq=128),
     ]
     dataset = preprocess(dataset, preprocessors)

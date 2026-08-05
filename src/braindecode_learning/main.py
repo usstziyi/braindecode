@@ -139,8 +139,8 @@ def step2_preprocess(dataset):
     
     print("定义预处理步骤...")
     preprocessors = [
-        Preprocessor("filter", l_freq=Config.LOW_FREQ, h_freq=Config.HIGH_FREQ),
-        Preprocessor("notch_filter", freqs=[Config.NOTCH_FREQ]),
+        Preprocessor("filter", l_freq=Config.LOW_FREQ, h_freq=Config.HIGH_FREQ, verbose=False),
+        Preprocessor("notch_filter", freqs=[Config.NOTCH_FREQ], verbose=False),
         Preprocessor("resample", sfreq=Config.TARGET_SFREQ),
     ]
     
