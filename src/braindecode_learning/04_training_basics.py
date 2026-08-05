@@ -121,7 +121,7 @@ def tutorial_eegclassifier_basic():
         model,
         lr=0.001,
         batch_size=64,
-        max_epochs=20,  # 只用 2 轮演示
+        max_epochs=200,  # 只用 2 轮演示
         device="mps",
         train_split=None,  # 不使用内置验证拆分, 手动管理
     )
@@ -149,6 +149,13 @@ def tutorial_eegclassifier_basic():
     
     print(f"   训练集准确率: {train_score:.4f}")
     print(f"   验证集准确率: {val_score:.4f}")
+
+    # 保存模型
+    import os
+    print("\n6. 保存模型...")
+    model_path = os.path.join(os.getcwd(), "model_eegnet_200.pth")
+    torch.save(classifier.module_.state_dict(), model_path)
+    print(f"   模型已保存到: {model_path}")
 
 
 # ============================================================
