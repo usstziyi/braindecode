@@ -54,10 +54,10 @@ class Config:
     TARGET_SFREQ = 128   # 目标采样率
     
     # 窗口参数
-    WINDOW_SECONDS = 4   # 窗口长度
-    STRIDE_SECONDS = 1   # 窗口步长
-    WINDOW_SAMPLES = WINDOW_SECONDS * TARGET_SFREQ  # 512
-    STRIDE_SAMPLES = STRIDE_SECONDS * TARGET_SFREQ  # 128
+    WINDOW_SECONDS = 2   # 窗口长度 (原论文配置)
+    STRIDE_SECONDS = 2   # 窗口步长 (非重叠)
+    WINDOW_SAMPLES = WINDOW_SECONDS * TARGET_SFREQ  # 256
+    STRIDE_SAMPLES = STRIDE_SECONDS * TARGET_SFREQ  # 256
     
     # 划分参数
     TRAIN_RATIO = 0.8    # 训练集比例
@@ -135,13 +135,23 @@ def step2_preprocess(dataset):
     print("STEP 2: 数据预处理")
     print("=" * 60)
     
-    from braindecode.preprocessing import preprocess, Preprocessor
+    from braindecode.preprocessing import (
+        preprocess,
+        Filter,
+        Resample,
+        PickTypes,
+        Rescale,
+        Preprocessor,
+        exponential_moving_standardize,
+    )
     
     print("定义预处理步骤...")
     preprocessors = [
-        Preprocessor("filter", l_freq=Config.LOW_FREQ, h_freq=Config.HIGH_FREQ, verbose=False),
-        Preprocessor("notch_filter", freqs=[Config.NOTCH_FREQ], verbose=False),
-        Preprocessor("resample", sfreq=Config.TARGET_SFREQ, verbose=False),
+        PickTypes(eeg=True, verbose=False),
+        Filter(l_freq=Config.LOW_FREQ, h_freq=Config.HIGH_FREQ, verbose=False),
+        Rescale(scalings=1e6, verbose=False),
+        Resample(sfreq=Config.TARGET_SFREQ, verbose=False),
+        Preprocessor(exponential_moving_standardize),
     ]
     
     print("应用预处理...")
@@ -176,7 +186,7 @@ def step3_window_and_split(dataset):
     print("\n创建窗口数据集...")
     windows_dataset = create_windows_from_events(
         dataset,
-        trial_start_offset_samples=0,
+        trial_start_offset_samples=64,
         trial_stop_offset_samples=0,
         window_size_samples=Config.WINDOW_SAMPLES,
         window_stride_samples=Config.STRIDE_SAMPLES,
@@ -253,6 +263,7 @@ def step4_build_model():
         n_chans=Config.N_CHANNELS,
         n_outputs=Config.N_CLASSES,
         n_times=Config.WINDOW_SAMPLES,
+        sfreq=Config.TARGET_SFREQ,
     )
     
     n_params = sum(p.numel() for p in model.parameters())

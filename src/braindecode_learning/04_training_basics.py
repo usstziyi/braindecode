@@ -71,7 +71,7 @@ def tutorial_eegclassifier_basic():
         PickTypes(eeg=True, verbose=False),
         Filter(l_freq=4, h_freq=40.0, verbose=False),
         Rescale(scalings=1e6, verbose=False),
-        # Resample(128, verbose=False),
+        Resample(sfreq=128, verbose=False),
         Preprocessor(exponential_moving_standardize),
     ]
     dataset = preprocess(dataset, preprocessors)
@@ -82,8 +82,8 @@ def tutorial_eegclassifier_basic():
         dataset,
         trial_start_offset_samples=0,
         trial_stop_offset_samples=0,
-        window_size_samples=1000,
-        window_stride_samples=1000,
+        window_size_samples=512,
+        window_stride_samples=512,
         preload=True,
     ) # 每条记录是一个窗口
 
@@ -104,8 +104,19 @@ def tutorial_eegclassifier_basic():
     model = EEGNet(
         n_chans=22,
         n_outputs=4,
-        n_times=1000,
-        sfreq=250,
+        n_times=512,               # ← 128Hz × 4s = 512（原值256仅对应2s）
+        sfreq=128,                 # ✅ 无需修改
+        F1=8,                      # ← 显式指定
+        D=2,                       # ← 显式指定
+        F2=16,                     # ← F1×D = 8×2
+        kernel_length=64,          # ← 0.5s @ 128Hz
+        depthwise_kernel_length=16,# ← 深度卷积核长度
+        pool1_kernel_size=4,       # ← 平均池化
+        pool2_kernel_size=8,       # ← 平均池化
+        drop_prob=0.5,             # ← 关键！不是默认的0.25
+        norm_rate=0.25,            # ← MaxNorm约束
+        conv_spatial_max_norm=1,   # ← 空间卷积MaxNorm
+        final_conv_length='auto',  # ← 自动调整输出长度
     )
 
 
@@ -119,11 +130,14 @@ def tutorial_eegclassifier_basic():
     print("\n3. 创建 EEGClassifier...")
     classifier = EEGClassifier(
         model,
-        lr=0.001,
-        batch_size=64,
-        max_epochs=200,  # 只用 2 轮演示
+        optimizer=torch.optim.Adam,
+        optimizer__lr=0.001,           # ← 显式指定优化器及学习率
+        optimizer__betas=(0.9, 0.999), # ← 原论文Adam参数，optimizer__betas 是传递给 Adam 优化器的 两个动量衰减系数，即 (β₁, β₂)。它们控制 Adam 对历史梯度信息的"记忆长度"。
+        criterion=torch.nn.CrossEntropyLoss,
+        batch_size=64,                 # ✅ 与原论文一致
+        max_epochs=500,                # ← 改为500
+        train_split=None,              # ✅ 手动管理验证集（留一被试法）
         device="mps",
-        train_split=None,  # 不使用内置验证拆分, 手动管理
     )
     # 4. 训练
     print("\n4. 开始训练...")
@@ -153,7 +167,7 @@ def tutorial_eegclassifier_basic():
     # 保存模型
     import os
     print("\n6. 保存模型...")
-    model_path = os.path.join(os.getcwd(), "model_eegnet_200.pth")
+    model_path = os.path.join(os.getcwd(), "model_eegnet.pth")
     torch.save(classifier.module_.state_dict(), model_path)
     print(f"   模型已保存到: {model_path}")
 
@@ -181,17 +195,17 @@ def tutorial_manual_training():
         PickTypes(eeg=True, verbose=False),
         Filter(l_freq=4, h_freq=40.0, verbose=False),
         Rescale(scalings=1e6, verbose=False),
-        Preprocessor(exponential_moving_standardize),
         Resample(sfreq=128, verbose=False),
+        Preprocessor(exponential_moving_standardize),
     ]
     dataset = preprocess(dataset, preprocessors)
     
     windows_dataset = create_windows_from_events(
         dataset,
-        trial_start_offset_samples=0,
+        trial_start_offset_samples=64,
         trial_stop_offset_samples=0,
-        window_size_samples=512,
-        window_stride_samples=128,
+        window_size_samples=256,
+        window_stride_samples=256,
         preload=True,
     )
     
@@ -208,7 +222,7 @@ def tutorial_manual_training():
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     
     # 模型
-    model = EEGNet(n_chans=22, n_outputs=4, n_times=512, sfreq=128)
+    model = EEGNet(n_chans=22, n_outputs=4, n_times=256, sfreq=128)
     
     # 损失函数和优化器
     criterion = torch.nn.CrossEntropyLoss()
@@ -431,7 +445,7 @@ def tutorial_save_load():
     import tempfile
     
     # 创建一个简单模型
-    model = ShallowFBCSPNet(n_chans=22, n_outputs=4, n_times=512)
+    model = ShallowFBCSPNet(n_chans=22, n_outputs=4, n_times=256, sfreq=128)
     
     # 方法1: 保存权重
     temp_dir = tempfile.mkdtemp()
@@ -441,12 +455,12 @@ def tutorial_save_load():
     print(f"1. 保存权重到: {weights_path}")
     
     # 加载权重
-    loaded_model = ShallowFBCSPNet(n_chans=22, n_outputs=4, n_times=512)
+    loaded_model = ShallowFBCSPNet(n_chans=22, n_outputs=4, n_times=256, sfreq=128)
     loaded_model.load_state_dict(torch.load(weights_path, weights_only=True))
     print(f"   权重加载成功!")
     
     # 验证
-    x = torch.randn(4, 22, 512)
+    x = torch.randn(4, 22, 256)
     model.eval()
     loaded_model.eval()
     with torch.no_grad():

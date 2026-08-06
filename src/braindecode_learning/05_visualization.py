@@ -267,15 +267,15 @@ Braindecode 可视化函数:
     
     print("创建演示梯度数据...")
     
-    # 模拟梯度数据 (22 通道, 4 秒 @ 128 Hz)
+    # 模拟梯度数据 (22 通道, 2 秒 @ 128 Hz)
     n_channels = 22
-    n_times = 512
+    n_times = 256
     
     # 创建有意义的梯度模式 (mu 频段在中央区较强)
     gradients = np.zeros((n_channels, n_times))
     
     # 添加 mu 频段活动 (8-13 Hz 对应 BCI IV 2a 中央区)
-    mu_activity = np.sin(2 * np.pi * 10 * np.linspace(0, 4, n_times))  # 10 Hz
+    mu_activity = np.sin(2 * np.pi * 10 * np.linspace(0, 2, n_times))  # 10 Hz
     for ch in range(n_channels):
         # 中央区通道 (索引 7-15) 有更强的 mu 响应
         if 7 <= ch <= 15:
@@ -292,7 +292,7 @@ Braindecode 可视化函数:
         aspect="auto", 
         interpolation="nearest",
         cmap="RdBu_r",
-        extent=[0, 4, 0, n_channels-1],
+        extent=[0, 2, 0, n_channels-1],
         origin="lower"
     )
     axes[0, 0].set_xlabel("Time (s)")
@@ -330,9 +330,9 @@ Braindecode 可视化函数:
     
     # 3. 各通道梯度时间序列
     for ch in range(n_channels):
-        axes[1, 0].plot(np.linspace(0, 4, n_times), gradients[ch], alpha=0.3, color="blue")
+        axes[1, 0].plot(np.linspace(0, 2, n_times), gradients[ch], alpha=0.3, color="blue")
     
-    axes[1, 0].plot(np.linspace(0, 4, n_times), gradients.mean(axis=0), 
+    axes[1, 0].plot(np.linspace(0, 2, n_times), gradients.mean(axis=0), 
                     "r-", linewidth=2, label="Mean")
     axes[1, 0].set_xlabel("Time (s)")
     axes[1, 0].set_ylabel("Gradient Value")
@@ -565,7 +565,7 @@ def tutorial_combined_visualization():
     
     # 6. 梯度图
     ax6 = fig.add_subplot(3, 3, 6)
-    grad_data = np.random.randn(22, 512)
+    grad_data = np.random.randn(22, 256)
     ax6.imshow(grad_data, aspect="auto", cmap="RdBu_r", interpolation="nearest")
     ax6.set_title("Gradient Map", fontsize=10)
     ax6.set_xlabel("Time")
