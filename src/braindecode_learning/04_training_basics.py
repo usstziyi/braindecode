@@ -30,6 +30,7 @@ from braindecode.preprocessing import (
 )
 from braindecode.models import EEGNet, ShallowFBCSPNet
 from braindecode import EEGClassifier, EEGRegressor
+from skorch.callbacks import EpochScoring
 
 
 # ============================================================
@@ -128,6 +129,16 @@ def tutorial_eegclassifier_basic():
     
     # 3. 创建 EEGClassifier
     print("\n3. 创建 EEGClassifier...")
+    # 回调：每个 epoch 打印训练集的 accuracy
+    callbacks = [
+        ("train_acc", EpochScoring(
+            scoring="accuracy",
+            name="train_acc",      # history 中的 列名 ，决定打印输出的表头
+            on_train=True,         # 在训练集上计算
+            lower_is_better=False, # accuracy 越高越好
+        )),
+    ]
+
     classifier = EEGClassifier(
         model,
         optimizer=torch.optim.Adam,
@@ -137,6 +148,8 @@ def tutorial_eegclassifier_basic():
         batch_size=64,                 # ✅ 与原论文一致
         max_epochs=500,                # ← 改为500
         train_split=None,              # ✅ 手动管理验证集（留一被试法）
+        callbacks=callbacks,           # ← 添加回调
+        classes=[0, 1, 2, 3],          # ← 显式指定类别（train_split=None 时必需）
         device="mps",
     )
     # 4. 训练
@@ -164,12 +177,12 @@ def tutorial_eegclassifier_basic():
     print(f"   训练集准确率: {train_score:.4f}")
     print(f"   验证集准确率: {val_score:.4f}")
 
-    # 保存模型
-    import os
-    print("\n6. 保存模型...")
-    model_path = os.path.join(os.getcwd(), "model_eegnet.pth")
-    torch.save(classifier.module_.state_dict(), model_path)
-    print(f"   模型已保存到: {model_path}")
+    # # 保存模型
+    # import os
+    # print("\n6. 保存模型...")
+    # model_path = os.path.join(os.getcwd(), "model_eegnet.pth")
+    # torch.save(classifier.module_.state_dict(), model_path)
+    # print(f"   模型已保存到: {model_path}")
 
 
 # ============================================================
@@ -371,7 +384,7 @@ def tutorial_evaluation_metrics():
         conv_spatial_max_norm=1,
         final_conv_length='auto',
     )
-    model.load_state_dict(torch.load("model_eegnet.pth"))
+    model.load_state_dict(torch.load("model_eegnet.pth",weights_only=True))
     model.to("mps")
     model.eval()
     
@@ -559,7 +572,7 @@ def tutorial_save_load():
         "epoch": 10,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
-        "loss": 0.1234,
+        "loss": 0.1234, # 实际是实时计算的
     }
     torch.save(checkpoint, checkpoint_path)
     print(f"\n2. 保存检查点到: {checkpoint_path}")
@@ -567,6 +580,8 @@ def tutorial_save_load():
     # 加载检查点
     loaded_checkpoint = torch.load(checkpoint_path, weights_only=True)
     print(f"   检查点内容: epoch={loaded_checkpoint['epoch']}, loss={loaded_checkpoint['loss']:.4f}")
+    model.load_state_dict(loaded_checkpoint["model_state_dict"]) # 加载模型权重
+    optimizer.load_state_dict(loaded_checkpoint["optimizer_state_dict"]) # 加载优化器状态
     
     # 清理
     import shutil
@@ -579,9 +594,9 @@ def tutorial_save_load():
 
 
 if __name__ == "__main__":
-    # tutorial_eegclassifier_basic()
+    tutorial_eegclassifier_basic()
     # tutorial_manual_training()
-    tutorial_evaluation_metrics()
+    # tutorial_evaluation_metrics()
     # tutorial_callbacks()
     # tutorial_save_load()
     
