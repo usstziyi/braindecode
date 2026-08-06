@@ -420,7 +420,7 @@ def tutorial_evaluation_metrics():
         conv_spatial_max_norm=1,
         final_conv_length='auto',
     )
-    model.load_state_dict(torch.load("model_eegnet.pth",weights_only=True))
+    model.load_state_dict(torch.load("models/best_model.pt",weights_only=True))
     model.to("mps")
     model.eval()
     
@@ -630,9 +630,9 @@ def tutorial_save_load():
 
 
 if __name__ == "__main__":
-    tutorial_eegclassifier_basic()
+    # tutorial_eegclassifier_basic()
     # tutorial_manual_training()
-    # tutorial_evaluation_metrics()
+    tutorial_evaluation_metrics()
     # tutorial_callbacks()
     # tutorial_save_load()
     
