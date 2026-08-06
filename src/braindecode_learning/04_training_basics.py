@@ -30,7 +30,9 @@ from braindecode.preprocessing import (
 )
 from braindecode.models import EEGNet, ShallowFBCSPNet
 from braindecode import EEGClassifier, EEGRegressor
-from skorch.callbacks import EpochScoring
+from skorch.callbacks import EpochScoring, Checkpoint
+from skorch.helper import predefined_split
+from sklearn.metrics import cohen_kappa_score
 
 
 # ============================================================
@@ -93,12 +95,13 @@ def tutorial_eegclassifier_basic():
     generator = torch.Generator().manual_seed(42)
     train_size = int(0.8 * len(windows_dataset))
     val_size = len(windows_dataset) - train_size
+    # EEGWindowsDataset 类型 转换为 torch.utils.data.Dataset 类型
     train_dataset, val_dataset = torch.utils.data.random_split(
         windows_dataset, [train_size, val_size], generator=generator
-    )
+    ) # torch on cpu
     
-    print(f"   训练集: {len(train_dataset)} 个窗口")
-    print(f"   验证集: {len(val_dataset)} 个窗口")
+    print(f"   训练集: {len(train_dataset)} 个窗口，{type(train_dataset)}")
+    print(f"   验证集: {len(val_dataset)} 个窗口，{type(val_dataset)}")
     
     # 2. 构建模型
     print("\n2. 构建模型...")
@@ -129,13 +132,33 @@ def tutorial_eegclassifier_basic():
     
     # 3. 创建 EEGClassifier
     print("\n3. 创建 EEGClassifier...")
+    import os
+    os.makedirs("models", exist_ok=True)  # 创建保存目录
     # 回调：每个 epoch 打印训练集的 accuracy
+    # Kappa 评分函数（skorch 会传入 classifier, X, y 三个参数）
+    def kappa_score(classifier, X, y):
+        y_pred = classifier.predict(X)  # predict 内部自动处理 eval 模式
+        return cohen_kappa_score(y, y_pred)
+
     callbacks = [
         ("train_acc", EpochScoring(
             scoring="accuracy",
             name="train_acc",      # history 中的 列名 ，决定打印输出的表头
             on_train=True,         # 在训练集上计算
             lower_is_better=False, # accuracy 越高越好
+        )),
+        ("kappa", EpochScoring(
+            scoring=kappa_score,
+            name="kappa",          # history 中的列名
+            lower_is_better=False, # kappa 越高越好
+            # 没有 on_train=True，默认在验证集上计算
+        )),
+        ("checkpoint", Checkpoint(
+            monitor="kappa_best",  # 监控最佳 kappa
+            f_params="models/best_model.pt",  # 保存到 models 目录
+            f_optimizer="models/optimizer.pt",  # 优化器状态
+            f_criterion="models/criterion.pt",  # 损失函数状态
+            f_history="models/history.json",  # 训练历史
         )),
     ]
 
@@ -147,26 +170,39 @@ def tutorial_eegclassifier_basic():
         criterion=torch.nn.CrossEntropyLoss,
         batch_size=64,                 # ✅ 与原论文一致
         max_epochs=500,                # ← 改为500
-        train_split=None,              # ✅ 手动管理验证集（留一被试法）
+        train_split=predefined_split(val_dataset),              # ✅ 手动管理验证集
         callbacks=callbacks,           # ← 添加回调
-        classes=[0, 1, 2, 3],          # ← 显式指定类别（train_split=None 时必需）
         device="mps",
     )
-    # 4. 训练
+    # 4. 训练 (X, y 传参方式)
     print("\n4. 开始训练...")
-    classifier.fit(train_dataset)
     
-    # 5. 评估
-    print("\n5. 评估模型...")
-    
-    # score() 来自 sklearn.ClassifierMixin, 需要 (X, y) 参数
+    # 将 Dataset 转换为 X, y 数组
     # WindowsDataset 返回 (x, y, idx), 需要提取
     def dataset_to_xy(dataset):
         X, y = [], []
         for x_i, y_i, _ in dataset:
             X.append(x_i)
             y.append(y_i)
+        # torch.tensor 转换为 numpy 数组
         return np.array(X), np.array(y)
+    
+    # numpy 数组
+    X_train, y_train = dataset_to_xy(train_dataset)
+
+    """
+    windows_dataset (CPU 内存)
+        ↓ random_split()
+    train_dataset / val_dataset (CPU 内存，只是索引划分)
+        ↓ classifier.fit()
+        ↓ 内部 DataLoader 按 batch 取数据
+        ↓ 自动 .to("mps")
+    batch 数据到达 MPS
+    """
+    classifier.fit(X_train, y_train) # 兼容scikit-learn接口，传参为X, y数组
+    
+    # 5. 评估
+    print("\n5. 评估模型...")
     
     X_train, y_train = dataset_to_xy(train_dataset)
     X_val, y_val = dataset_to_xy(val_dataset)
