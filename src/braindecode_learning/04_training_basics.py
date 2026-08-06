@@ -310,26 +310,108 @@ def tutorial_evaluation_metrics():
     print("=" * 60)
     
     from sklearn.metrics import (
-        accuracy_score,
-        balanced_accuracy_score,
-        precision_score,
-        recall_score,
-        f1_score,
-        confusion_matrix,
-        classification_report,
+        accuracy_score,           # 准确率: 正确预测数 / 总样本数
+        balanced_accuracy_score,  # 平衡准确率: 各类别准确率的平均值, 处理类别不平衡
+        precision_score,          # 精确率: 预测为正的样本中实际为正的比例
+        recall_score,             # 召回率: 实际为正的样本中被正确预测为正的比例
+        f1_score,                 # F1分数: 精确率和召回率的调和平均, 综合评估指标
+        confusion_matrix,         # 混淆矩阵: 展示各类别预测与真实标签的对应关系
+        classification_report,    # 分类报告: 生成包含精确率/召回率/F1的详细文本报告
     )
     
-    # 模拟真实场景
-    np.random.seed(42)
-    y_true = np.random.randint(0, 4, size=100)
-    y_pred = y_true.copy()
-    # 添加一些错误
-    error_idx = np.random.choice(100, size=15, replace=False)
-    y_pred[error_idx] = np.random.randint(0, 4, size=15)
+    # 加载真实数据集
+    print("\n1. 加载 BNCI2014_001 数据集...")
+    dataset = MOABBDataset(dataset_name="BNCI2014_001")
+    
+    # 按 session 划分，使用第二个 session 作为测试集
+    splits = dataset.split(by="session")
+    print(f"   数据集按 session 划分: {list(splits.keys())}")
+    test_raw = splits[list(splits.keys())[1]]
+    print(f"   测试集: {list(splits.keys())[1]}")
+    
+    # 预处理测试数据
+    print("\n2. 预处理测试数据...")
+    preprocessors = [
+        PickTypes(eeg=True, verbose=False),
+        Filter(l_freq=4, h_freq=40.0, verbose=False),
+        Rescale(scalings=1e6, verbose=False),
+        Resample(sfreq=128, verbose=False),
+        Preprocessor(exponential_moving_standardize),
+    ]
+    test_raw = preprocess(test_raw, preprocessors)
+    
+    # 窗口化测试数据
+    print("\n3. 创建测试集窗口...")
+    test_windows = create_windows_from_events(
+        test_raw,
+        trial_start_offset_samples=0,
+        trial_stop_offset_samples=0,
+        window_size_samples=512,
+        window_stride_samples=512,
+        preload=True,
+    )
+    print(f"   测试集窗口数: {len(test_windows)}")
+    
+    # 加载已训练模型
+    print("\n4. 加载已训练模型...")
+    model = EEGNet(
+        n_chans=22,
+        n_outputs=4,
+        n_times=512,
+        sfreq=128,
+        F1=8,
+        D=2,
+        F2=16,
+        kernel_length=64,
+        depthwise_kernel_length=16,
+        pool1_kernel_size=4,
+        pool2_kernel_size=8,
+        drop_prob=0.5,
+        norm_rate=0.25,
+        conv_spatial_max_norm=1,
+        final_conv_length='auto',
+    )
+    model.load_state_dict(torch.load("model_eegnet.pth"))
+    model.to("mps")
+    model.eval()
+    
+    # 在测试集上进行预测
+    print("\n5. 在测试集上进行预测...")
+    
+    # 提取测试集数据
+    def dataset_to_xy(dataset):
+        X, y = [], []
+        for x_i, y_i, _ in dataset:
+            X.append(x_i)
+            y.append(y_i)
+        return np.array(X), np.array(y)
+    
+    X_test, y_true = dataset_to_xy(test_windows)
+    
+    # 预测
+    with torch.no_grad():
+        y_pred = model(torch.tensor(X_test, dtype=torch.float32).to("mps")).argmax(dim=1).cpu().numpy()
+    print(f"   测试样本数: {len(y_true)}")
+    print(f"   预测完成")
+
+    
     
     print(f"\n混淆矩阵:")
     cm = confusion_matrix(y_true, y_pred)
     print(cm)
+
+    # plt保存混淆矩阵图片
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.savefig("confusion_matrix.png")
+
+
     
     print(f"\n分类报告:")
     report = classification_report(y_true, y_pred, target_names=["Class 0", "Class 1", "Class 2", "Class 3"])
@@ -497,9 +579,9 @@ def tutorial_save_load():
 
 
 if __name__ == "__main__":
-    tutorial_eegclassifier_basic()
+    # tutorial_eegclassifier_basic()
     # tutorial_manual_training()
-    # tutorial_evaluation_metrics()
+    tutorial_evaluation_metrics()
     # tutorial_callbacks()
     # tutorial_save_load()
     
