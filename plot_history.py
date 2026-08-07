@@ -1,21 +1,22 @@
 import json
 import matplotlib.pyplot as plt
 import numpy as np
+from skorch.history import History
 
 def plot_training_history(history_path="models/history.json"):
     """读取 history.json 并绘制训练曲线"""
     
     # 1. 读取历史数据
     with open(history_path, 'r') as f:
-        history = json.load(f)
+        history = History(json.load(f))
     
     # 2. 提取指标
-    epochs = [h['epoch'] for h in history]  # 从1开始
-    train_loss = [h['train_loss'] for h in history]
-    valid_loss = [h['valid_loss'] for h in history]
-    train_acc = [h['train_acc'] for h in history]
-    valid_acc = [h['valid_acc'] for h in history]
-    kappa = [h['kappa'] for h in history]
+    epochs = history[:, "epoch"]
+    train_loss = history[:, "train_loss"]
+    valid_loss = history[:, "valid_loss"]
+    train_acc = history[:, "train_acc"]
+    valid_acc = history[:, "valid_acc"]
+    kappa = history[:, "kappa"]
     
     # 3. 创建子图
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))

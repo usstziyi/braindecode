@@ -41,21 +41,21 @@ def tutorial_training_curves():
     print("教程 5.1: 训练曲线可视化")
     print("=" * 60)
 
-    np.random.seed(42)
-    n_epochs = 30
-    train_loss = 2.0 * np.exp(-np.linspace(0, 3, n_epochs)) + 0.05 + np.random.randn(n_epochs) * 0.01
-    val_loss = 2.2 * np.exp(-np.linspace(0, 2.5, n_epochs)) + 0.15 + np.random.randn(n_epochs) * 0.02
-    val_loss = np.minimum.accumulate(val_loss) # 累计最小值, 用于可视化最佳验证损失
-    train_acc = np.clip(1 - 0.9 * np.exp(-np.linspace(0, 2.5, n_epochs)) + np.random.randn(n_epochs) * 0.005, 0, 1)
-    val_acc = np.clip(1 - 1.0 * np.exp(-np.linspace(0, 2, n_epochs)) - 0.02 + np.random.randn(n_epochs) * 0.01, 0, 1)
-    val_acc = np.maximum.accumulate(val_acc)
+    import json
+    from skorch.history import History
+    with open("models/history.json", "r") as f:
+        history = History(json.load(f))
+
+    epochs = history[:, "epoch"]
+    train_loss = history[:, "train_loss"]
+    val_loss = history[:, "valid_loss"]
+    val_acc = history[:, "valid_acc"]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-    epochs = range(1, n_epochs + 1) # 1～n_epochs
 
-    ax1.plot(epochs, train_loss, "b-", label="Training Loss", linewidth=2)
-    ax1.plot(epochs, val_loss, "r-", label="Validation Loss", linewidth=2)
-    best_epoch = np.argmin(val_loss) + 1
+    ax1.plot(epochs, train_loss, "b-", label="Training Loss", linewidth=1)
+    ax1.plot(epochs, val_loss, "r-", label="Validation Loss", linewidth=1)
+    best_epoch = [i + 1 for i, h in enumerate(history) if h.get("valid_loss_best", False)][-1]
     ax1.axvline(x=best_epoch, color="g", linestyle="--", alpha=0.7, label=f"Best Epoch ({best_epoch})")
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Loss")
@@ -63,18 +63,21 @@ def tutorial_training_curves():
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
-    ax2.plot(epochs, train_acc, "b-", label="Training Accuracy", linewidth=2)
-    ax2.plot(epochs, val_acc, "r-", label="Validation Accuracy", linewidth=2)
-    best_epoch_acc = np.argmax(val_acc) + 1
+    ax2.plot(epochs, val_acc, "r-", label="Validation Accuracy", linewidth=1)
+    best_epoch_acc = [i + 1 for i, h in enumerate(history) if h.get("valid_acc_best", False)][-1]
     ax2.axvline(x=best_epoch_acc, color="g", linestyle="--", alpha=0.7, label=f"Best Epoch ({best_epoch_acc})")
     ax2.set_xlabel("Epoch")
     ax2.set_ylabel("Accuracy")
-    ax2.set_title("Training and Validation Accuracy")
+    ax2.set_title("Validation Accuracy")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("viz_pic/training_curves.png", dpi=100, bbox_inches="tight")
+    plt.savefig(
+        "viz_pic/training_curves.png",  # 保存路径和文件名: 将图像保存到 viz_pic 目录下的 training_curves.png 文件
+        dpi=150,                         # 分辨率: 设置图像的分辨率为每英寸150像素, 数值越高图像越清晰
+        bbox_inches="tight"              # 紧凑裁剪: 自动裁剪图像四周的空白边距, 使保存的图像更加紧凑
+    )
     print(f"  训练曲线已保存: viz_pic/training_curves.png")
     print(f"  最佳验证损失: Epoch {best_epoch}, Loss = {val_loss[best_epoch-1]:.4f}")
     print(f"  最佳验证准确率: Epoch {best_epoch_acc}, Acc = {val_acc[best_epoch_acc-1]:.4f}")
@@ -85,30 +88,125 @@ def tutorial_training_curves():
 # 2. 归因/梯度可视化
 # ============================================================
 
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
+from braindecode.datasets import MOABBDataset
+from braindecode.preprocessing import (
+    preprocess,
+    Filter,
+    Resample,
+    PickTypes,
+    Rescale,
+    Preprocessor,
+    exponential_moving_standardize,
+    create_windows_from_events,
+)
+from braindecode.models import EEGNet, ShallowFBCSPNet
+from braindecode import EEGClassifier, EEGRegressor
+from skorch.callbacks import EpochScoring, Checkpoint
+from skorch.helper import predefined_split
+from sklearn.metrics import cohen_kappa_score
+
+from sklearn.metrics import (
+    accuracy_score,           # 准确率: 正确预测数 / 总样本数
+    balanced_accuracy_score,  # 平衡准确率: 各类别准确率的平均值, 处理类别不平衡
+    precision_score,          # 精确率: 预测为正的样本中实际为正的比例
+    recall_score,             # 召回率: 实际为正的样本中被正确预测为正的比例
+    f1_score,                 # F1分数: 精确率和召回率的调和平均, 综合评估指标
+    confusion_matrix,         # 混淆矩阵: 展示各类别预测与真实标签的对应关系
+    classification_report,    # 分类报告: 生成包含精确率/召回率/F1的详细文本报告
+)
+
 def tutorial_gradient_visualization():
     """使用 braindecode.visualization API 进行梯度/归因可视化"""
     print("\n" + "=" * 60)
     print("教程 5.2: 梯度/归因可视化")
     print("=" * 60)
 
-    n_channels, n_times, n_classes = 22, 256, 4
-    model = EEGNet(n_chans=n_channels, n_outputs=n_classes, n_times=n_times)
+    dataset = MOABBDataset(dataset_name="BNCI2014_001")
+    # 根据session类别划分train、test
+    splits = dataset.split(by="session")
+    train_dataset = splits["0train"]
+    test_dataset = splits["1test"]
+    # 预处理
+    preprocessors = [
+        PickTypes(eeg=True, verbose=False),
+        Filter(l_freq=4, h_freq=40.0, verbose=False),
+        Rescale(scalings=1e6, verbose=False),
+        Resample(sfreq=128, verbose=False),
+        Preprocessor(exponential_moving_standardize),
+    ]
+    train_dataset = preprocess(train_dataset, preprocessors)
+    test_dataset = preprocess(test_dataset, preprocessors)
+    train_windows = create_windows_from_events(
+        train_dataset,
+        trial_start_offset_samples=0,
+        trial_stop_offset_samples=0,
+        window_size_samples=512,
+        window_stride_samples=512,
+        preload=True,
+    )
+    test_windows = create_windows_from_events(
+        test_dataset,
+        trial_start_offset_samples=0,
+        trial_stop_offset_samples=0,
+        window_size_samples=512,
+        window_stride_samples=512,
+        preload=True,
+    )
+
+    # 定义通道数和时间点数
+    n_channels = 22
+    n_times = 512
+
+    model = EEGNet(
+        n_chans=22,
+        n_outputs=4,
+        n_times=512,               # ← 128Hz × 4s = 512（原值256仅对应2s）
+        sfreq=128,                 # ✅ 无需修改
+        F1=8,                      # ← 显式指定
+        D=2,                       # ← 显式指定
+        F2=16,                     # ← F1×D = 8×2
+        kernel_length=64,          # ← 0.5s @ 128Hz
+        depthwise_kernel_length=16,# ← 深度卷积核长度
+        pool1_kernel_size=4,       # ← 平均池化
+        pool2_kernel_size=8,       # ← 平均池化
+        drop_prob=0.5,             # ← 关键！不是默认的0.25
+        norm_rate=0.25,            # ← MaxNorm约束
+        conv_spatial_max_norm=1,   # ← 空间卷积MaxNorm
+        final_conv_length='auto',  # ← 自动调整输出长度
+    )
     model.eval()
 
-    x_demo = torch.randn(1, n_channels, n_times)
-    target = torch.tensor([0])
+    # 使用 MPS 加速 (Apple Silicon)
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    model = model.to(device)
+
+    # 使用一条真实记录 (x_demo: np.ndarray, target: int)
+    x_demo, target, _ = train_windows[0]
+    x_demo = torch.tensor(x_demo).unsqueeze(0).to(device)  # numpy -> tensor, 添加batch维度, 迁移到MPS
+    target = torch.tensor([target]).to(device)  # int -> tensor, 迁移到MPS
 
     print("\n  1. 显著性图 (saliency)...")
-    sal_map = saliency(model, x_demo, target)
-    sal_np = sal_map.squeeze().detach().numpy()
+    # 每次调用 saliency 都会执行 恰好一次前向传播 + 一次反向传播 。
+    # 它不接受外部已计算好的模型输出，无法跳过前向传播。
+    # 归因分析需要反向传播来计算 输出对输入的梯度dy/dx ，而不是损失对权重的梯度dL/dw。
+    # 分析输入哪些部分重要，即哪些通道对模型的输出有显著的影响。
+    # 通过计算输入的梯度，我们可以了解模型在不同时间点对不同通道的敏感度。
+    # 例如，如果一个通道的梯度值较大，说明该通道对模型的输出有显著的影响。
+    # 可以根据梯度值来可视化输入的通道重要性，从而帮助我们理解模型的决策过程。
+    sal_map = saliency(model, x_demo, target)  # shape: (1, 22, 512)
+    sal_np = sal_map.squeeze().cpu().numpy()  # shape: (22, 512)
 
     print("  2. 积分梯度 (integrated_gradients)...")
     ig_map = integrated_gradients(model, x_demo, target)
-    ig_np = ig_map.squeeze().detach().numpy()
+    ig_np = ig_map.squeeze().cpu().numpy()
 
     print("  3. 频域幅度梯度 (amplitude_gradients)...")
-    amp_grads = amplitude_gradients(model, x_demo.detach().numpy())
-    amp_grad_np = amp_grads[0, 0]
+    amp_grads = amplitude_gradients(model, x_demo.cpu().numpy()) # shape: (4, 1, 22, 257)
+    print(amp_grads.shape)
+    amp_grad_np = amp_grads[0, 0] # shape: (22, 257)
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -116,19 +214,26 @@ def tutorial_gradient_visualization():
     axes[0, 0].set_xlabel("Time (samples)")
     axes[0, 0].set_ylabel("Channel")
     axes[0, 0].set_title("Saliency Map")
+    axes[0, 0].set_yticks(range(n_channels))
     plt.colorbar(im1, ax=axes[0, 0])
 
     im2 = axes[0, 1].imshow(ig_np, aspect="auto", cmap="RdBu_r", interpolation="nearest")
     axes[0, 1].set_xlabel("Time (samples)")
     axes[0, 1].set_ylabel("Channel")
     axes[0, 1].set_title("Integrated Gradients")
+    axes[0, 1].set_yticks(range(n_channels))
     plt.colorbar(im2, ax=axes[0, 1])
 
+    # extent=[0, 128, 0, n_channels - 1] — 坐标轴范围
+    # - x 轴：0 → 128 Hz（频率）
+    # - y 轴：0 → 21（通道索引）
+    # origin="lower" — 原点在左下角，y 轴向上增长
     im3 = axes[1, 0].imshow(amp_grad_np, aspect="auto", cmap="viridis",
-                             interpolation="nearest", extent=[0, 128, 0, n_channels - 1], origin="lower")
+                             interpolation="nearest", extent=[0, amp_grad_np.shape[1], 0, amp_grad_np.shape[0] - 1], origin="lower")
     axes[1, 0].set_xlabel("Frequency (Hz)")
     axes[1, 0].set_ylabel("Channel")
     axes[1, 0].set_title("Amplitude Gradients (Frequency Domain)")
+    axes[1, 0].set_yticks(range(n_channels))
     plt.colorbar(im3, ax=axes[1, 0])
 
     channel_importance = np.abs(sal_np).mean(axis=1)
@@ -136,7 +241,7 @@ def tutorial_gradient_visualization():
     axes[1, 1].set_xlabel("Mean |Saliency|")
     axes[1, 1].set_ylabel("Channel Index")
     axes[1, 1].set_title("Channel Importance (Saliency)")
-    axes[1, 1].invert_yaxis()
+    axes[1, 1].invert_yaxis() # 让0在顶部
     axes[1, 1].grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -365,8 +470,8 @@ def tutorial_combined_visualization():
 
 
 if __name__ == "__main__":
-    tutorial_training_curves()         # 训练曲线可视化
-    # tutorial_gradient_visualization()  # 梯度/归因可视化 (saliency, integrated_gradients, amplitude_gradients)
+    # tutorial_training_curves()        # 训练曲线可视化
+    tutorial_gradient_visualization()  # 梯度/归因可视化 (saliency, integrated_gradients, amplitude_gradients)
     # tutorial_confusion_matrix()        # 混淆矩阵可视化 (braindecode.visualization.plot_confusion_matrix)
     # tutorial_eeg_signal_plot()         # EEG 信号可视化
     # tutorial_combined_visualization()  # 综合可视化
