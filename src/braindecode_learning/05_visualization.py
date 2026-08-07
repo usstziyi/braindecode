@@ -19,14 +19,16 @@ import matplotlib.pyplot as plt
 from scipy import signal as sp_signal
 from sklearn.metrics import confusion_matrix, auc
 
+# 导入 braindecode 可视化模块中的归因/梯度可视化函数
 from braindecode.visualization import (
-    saliency,
-    integrated_gradients,
-    amplitude_gradients,
-    plot_confusion_matrix as bd_plot_confusion_matrix,
+    saliency,              # 显著性图: 计算输入对输出的显著性梯度
+    integrated_gradients,  # 积分梯度: 通过积分路径计算更稳定的归因梯度
+    amplitude_gradients,   # 频域幅度梯度: 在频域中计算幅度对应的梯度
+    plot_confusion_matrix as bd_plot_confusion_matrix,  # 混淆矩阵可视化绘图函数 (使用别名 bd_plot_confusion_matrix)
 )
 from braindecode.datasets import MOABBDataset
 from braindecode.models import EEGNet
+
 
 
 # ============================================================
@@ -43,13 +45,13 @@ def tutorial_training_curves():
     n_epochs = 30
     train_loss = 2.0 * np.exp(-np.linspace(0, 3, n_epochs)) + 0.05 + np.random.randn(n_epochs) * 0.01
     val_loss = 2.2 * np.exp(-np.linspace(0, 2.5, n_epochs)) + 0.15 + np.random.randn(n_epochs) * 0.02
-    val_loss = np.minimum.accumulate(val_loss)
+    val_loss = np.minimum.accumulate(val_loss) # 累计最小值, 用于可视化最佳验证损失
     train_acc = np.clip(1 - 0.9 * np.exp(-np.linspace(0, 2.5, n_epochs)) + np.random.randn(n_epochs) * 0.005, 0, 1)
     val_acc = np.clip(1 - 1.0 * np.exp(-np.linspace(0, 2, n_epochs)) - 0.02 + np.random.randn(n_epochs) * 0.01, 0, 1)
     val_acc = np.maximum.accumulate(val_acc)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-    epochs = range(1, n_epochs + 1)
+    epochs = range(1, n_epochs + 1) # 1～n_epochs
 
     ax1.plot(epochs, train_loss, "b-", label="Training Loss", linewidth=2)
     ax1.plot(epochs, val_loss, "r-", label="Validation Loss", linewidth=2)
@@ -72,8 +74,8 @@ def tutorial_training_curves():
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("training_curves.png", dpi=100, bbox_inches="tight")
-    print(f"  训练曲线已保存: training_curves.png")
+    plt.savefig("viz_pic/training_curves.png", dpi=100, bbox_inches="tight")
+    print(f"  训练曲线已保存: viz_pic/training_curves.png")
     print(f"  最佳验证损失: Epoch {best_epoch}, Loss = {val_loss[best_epoch-1]:.4f}")
     print(f"  最佳验证准确率: Epoch {best_epoch_acc}, Acc = {val_acc[best_epoch_acc-1]:.4f}")
     plt.close(fig)
@@ -363,17 +365,8 @@ def tutorial_combined_visualization():
 
 
 if __name__ == "__main__":
-    tutorial_training_curves()
-    tutorial_gradient_visualization()
-    tutorial_confusion_matrix()
-    tutorial_eeg_signal_plot()
-    tutorial_combined_visualization()
-
-    print("\n" + "=" * 60)
-    print("第05章完成! 你已经学会了:")
-    print("  训练曲线可视化")
-    print("  梯度/归因可视化 (saliency, integrated_gradients, amplitude_gradients)")
-    print("  混淆矩阵可视化 (braindecode.visualization.plot_confusion_matrix)")
-    print("  EEG 信号可视化")
-    print("  综合可视化")
-    print("=" * 60)
+    tutorial_training_curves()         # 训练曲线可视化
+    # tutorial_gradient_visualization()  # 梯度/归因可视化 (saliency, integrated_gradients, amplitude_gradients)
+    # tutorial_confusion_matrix()        # 混淆矩阵可视化 (braindecode.visualization.plot_confusion_matrix)
+    # tutorial_eeg_signal_plot()         # EEG 信号可视化
+    # tutorial_combined_visualization()  # 综合可视化

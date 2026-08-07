@@ -442,9 +442,6 @@ def tutorial_evaluation_metrics():
         y_pred = model(torch.tensor(X_test, dtype=torch.float32).to("mps")).argmax(dim=1).cpu().numpy()
     print(f"   测试样本数: {len(y_true)}")
     print(f"   预测完成")
-
-    
-    
     print(f"\n混淆矩阵:")
     cm = confusion_matrix(y_true, y_pred)
     print(cm)

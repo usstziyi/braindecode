@@ -10,7 +10,7 @@ def plot_training_history(history_path="models/history.json"):
         history = json.load(f)
     
     # 2. 提取指标
-    epochs = [h['epoch'] for h in history]
+    epochs = [h['epoch'] for h in history]  # 从1开始
     train_loss = [h['train_loss'] for h in history]
     valid_loss = [h['valid_loss'] for h in history]
     train_acc = [h['train_acc'] for h in history]
