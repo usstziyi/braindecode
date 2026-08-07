@@ -348,8 +348,8 @@ def tutorial_confusion_matrix():
         with_f1_score=True # 显示F1分数
     )
     fig.tight_layout()
-    fig.savefig("confusion_matrix.png", dpi=100, bbox_inches="tight")
-    print("  混淆矩阵已保存: confusion_matrix.png")
+    fig.savefig("viz_pic/confusion_matrix.png", dpi=100, bbox_inches="tight")
+    print("  混淆矩阵已保存: viz_pic/confusion_matrix.png")
     plt.close(fig)
 
     # np.diag(cm) — 获取对角线元素（所有正确预测的数量）
@@ -368,72 +368,115 @@ def tutorial_eeg_signal_plot():
     print("=" * 60)
 
     dataset = MOABBDataset(dataset_name="BNCI2014_001")
-    raw = dataset.datasets[0].raw.copy()
-    raw.filter(l_freq=0.5, h_freq=40.0, verbose=False)
-    raw.resample(128, verbose=False)
+    # 根据session类别划分train、test
+    splits = dataset.split(by="session")
+    train_dataset = splits["0train"]
+    test_dataset = splits["1test"]
+    # 预处理
+    preprocessors = [
+        PickTypes(eeg=True, verbose=False),
+        Filter(l_freq=4, h_freq=40.0, verbose=False),
+        Rescale(scalings=1e6, verbose=False), # 转换为微伏 (原始单位通常是 V，需要乘 1e6)
+        Resample(sfreq=128, verbose=False),
+        Preprocessor(exponential_moving_standardize),
+    ]
+    train_dataset = preprocess(train_dataset, preprocessors)
+    test_dataset = preprocess(test_dataset, preprocessors)
+    train_windows = create_windows_from_events(
+        train_dataset,
+        trial_start_offset_samples=0,
+        trial_stop_offset_samples=0,
+        window_size_samples=512,
+        window_stride_samples=512,
+        preload=True,
+    )
+    test_windows = create_windows_from_events(
+        test_dataset,
+        trial_start_offset_samples=0,
+        trial_stop_offset_samples=0,
+        window_size_samples=512,
+        window_stride_samples=512,
+        preload=True,
+    )
+
+    # train_windows 是 BaseConcatDataset，需要通过 .datasets[0] 访问第一个子数据集
+    # EEGWindowsDataset 存储的是 raw 对象，通过 .raw 访问
+    raw = train_windows.datasets[0].raw
+    info = raw.info
+    ch_names = raw.info["ch_names"]
+    sfreq = raw.info["sfreq"]
+
+    # data: numpy array(22, 512)
+    # y: numpy array(1,)
+    data, y , _ = train_windows[0]
+    print(f"  data range (µV): [{data.min():.6f}, {data.max():.6f}]")
+    n_channels = data.shape[0] # 22
+    n_times = data.shape[1] # 512
+
+    n_show = 8
+    # 用微伏数据计算通道间距
+    step = abs(data).max() * 1.5
+    print(f"  step: {step:.6f}")
 
     # 当前代码中只有一个 figure（通过 plt.subplots 创建）
     fig, axes = plt.subplots(3, 1, figsize=(14, 12))
-    data = raw.get_data()
-    time = np.arange(data.shape[1]) / raw.info["sfreq"]
-    n_show = 8
-    step = data.std(axis=1).max() * 1.5
 
     # 1. 原始 EEG
     ax = axes[0]
     for i in range(n_show):
-        n5 = int(5 * raw.info["sfreq"])
-        ax.plot(time[:n5], data[i, :n5] + i * step, linewidth=0.5)
+        ax.plot(np.arange(0, n_times), data[i] + i * step, linewidth=0.5)
         ax.axhline(y=i * step, color="gray", alpha=0.3, linewidth=0.5)
-    ax.set_xlim(0, 5)
+    # ax.set_xlim(0, 5)
     ax.set_xlabel("Time (s)")
     ax.set_title("Raw EEG Signal (First 5s, 8 Channels)")
-    ax.set_yticks(range(n_show))
-    ax.set_yticklabels(raw.ch_names[:n_show])
+    ax.set_yticks([i * step for i in range(n_show)])
+    ax.set_yticklabels(ch_names[:n_show])
+
+
 
     # 2. 频谱
     ax = axes[1]
-    freqs, psd = sp_signal.welch(data[7], fs=raw.info["sfreq"], nperseg=1024)
+    freqs, psd = sp_signal.welch(data[7], fs=128, nperseg=1024)
     ax.semilogy(freqs, psd, "b-", linewidth=1.5)
     ax.axvspan(8, 13, alpha=0.3, color="red", label="Mu/Alpha (8-13 Hz)")
     ax.axvspan(13, 30, alpha=0.3, color="purple", label="Beta (13-30 Hz)")
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("PSD")
-    ax.set_title(f"Power Spectrum ({raw.ch_names[7]})")
+    ax.set_title(f"Power Spectrum (Channel 7)")
     ax.legend(fontsize=7)
     ax.grid(True, alpha=0.3)
 
-    # 3. ERP
-    ax = axes[2]
-    try:
-        events = mne.find_events(raw)
-    except ValueError:
-        events, _ = mne.events_from_annotations(raw)
+    # # 3. ERP
+    # ax = axes[2]
+    # try:
+    #     events = mne.find_events(raw)
+    # except ValueError:
+    #     events, _ = mne.events_from_annotations(raw)
 
-    sfreq = raw.info["sfreq"]
-    n_pre, n_post = int(0.1 * sfreq), int(0.5 * sfreq)
-    n_samples = n_pre + n_post
-    erps = []
-    for ev in events[:50]:
-        s = ev[0] - n_pre
-        if 0 <= s and s + n_samples <= data.shape[1]:
-            erps.append(data[7, s:s + n_samples])
+    # sfreq = raw.info["sfreq"]
+    # n_pre, n_post = int(0.1 * sfreq), int(0.5 * sfreq)
+    # n_samples = n_pre + n_post
+    # erps = []
+    # for ev in events[:50]:
+    #     s = ev[0] - n_pre
+    #     if 0 <= s and s + n_samples <= data.shape[1]:
+    #         erps.append(data[7, s:s + n_samples])
 
-    if erps:
-        erps = np.array(erps)
-        erp_t = np.linspace(-0.1, 0.5, n_samples)
-        ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5)
-        ax.plot(erp_t, erps.mean(axis=0), "r-", linewidth=2, label="Mean ERP")
-        ax.axvline(x=0, color="black", linestyle="--", alpha=0.5, label="Stimulus")
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Amplitude")
-        ax.set_title(f"ERP ({raw.ch_names[7]})")
-        ax.legend()
-        ax.grid(True, alpha=0.3)
+    # if erps:
+    #     erps = np.array(erps)
+    #     erp_t = np.linspace(-0.1, 0.5, n_samples)
+    #     ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5)
+    #     ax.plot(erp_t, erps.mean(axis=0), "r-", linewidth=2, label="Mean ERP")
+    #     ax.axvline(x=0, color="black", linestyle="--", alpha=0.5, label="Stimulus")
+    #     ax.set_xlabel("Time (s)")
+    #     ax.set_ylabel("Amplitude")
+    #     ax.set_title(f"ERP ({raw.ch_names[7]})")
+    #     ax.legend()
+    #     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("eeg_signal_visualization.png", dpi=100, bbox_inches="tight")
-    print("  EEG 信号可视化已保存: eeg_signal_visualization.png")
+    plt.savefig("viz_pic/eeg_signal_visualization.png", dpi=100, bbox_inches="tight")
+    print("  EEG 信号可视化已保存: viz_pic/eeg_signal_visualization.png")
     plt.close(fig)
 
 
@@ -541,6 +584,6 @@ def tutorial_combined_visualization():
 if __name__ == "__main__":
     # tutorial_training_curves()        # 训练曲线可视化
     # tutorial_gradient_visualization()  # 梯度/归因可视化 (saliency, integrated_gradients, amplitude_gradients)
-    tutorial_confusion_matrix()        # 混淆矩阵可视化 (braindecode.visualization.plot_confusion_matrix)
-    # tutorial_eeg_signal_plot()         # EEG 信号可视化
+    # tutorial_confusion_matrix()        # 混淆矩阵可视化 (braindecode.visualization.plot_confusion_matrix)
+    tutorial_eeg_signal_plot()         # EEG 信号可视化
     # tutorial_combined_visualization()  # 综合可视化
