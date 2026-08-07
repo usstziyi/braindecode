@@ -436,7 +436,8 @@ def tutorial_eeg_signal_plot():
 
     # 2. 频谱
     ax = axes[1]
-    freqs, psd = sp_signal.welch(data[7], fs=128, nperseg=1024)
+    freqs, psd = sp_signal.welch(data[7], fs=128, nperseg=256)
+    # 使用对数 y 轴（适用于跨越多个数量级的数据）
     ax.semilogy(freqs, psd, "b-", linewidth=1.5)
     ax.axvspan(8, 13, alpha=0.3, color="red", label="Mu/Alpha (8-13 Hz)")
     ax.axvspan(13, 30, alpha=0.3, color="purple", label="Beta (13-30 Hz)")
@@ -475,7 +476,7 @@ def tutorial_eeg_signal_plot():
     #     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("viz_pic/eeg_signal_visualization.png", dpi=100, bbox_inches="tight")
+    plt.savefig("viz_pic/eeg_signal_visualization.png", dpi=150, bbox_inches="tight")
     print("  EEG 信号可视化已保存: viz_pic/eeg_signal_visualization.png")
     plt.close(fig)
 
