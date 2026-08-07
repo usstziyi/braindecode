@@ -177,11 +177,11 @@ def tutorial_gradient_visualization():
         conv_spatial_max_norm=1,   # ← 空间卷积MaxNorm
         final_conv_length='auto',  # ← 自动调整输出长度
     )
-    model.eval()
-
-    # 使用 MPS 加速 (Apple Silicon)
+    # 加载模型参数
+    model.load_state_dict(torch.load("models/best_model.pt",weights_only=True))   
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     model = model.to(device)
+    model.eval()
 
     # 使用一条真实记录 (x_demo: np.ndarray, target: int)
     x_demo, target, _ = train_windows[0]
@@ -260,33 +260,101 @@ def tutorial_confusion_matrix():
     print("教程 5.3: 混淆矩阵可视化")
     print("=" * 60)
 
-    class_names = ["Left Hand", "Right Hand", "Feet", "Tongue"]
-    np.random.seed(42)
-    y_true, y_pred = [], []
-    for _ in range(200):
-        tc = np.random.randint(0, 4)
-        if tc == 0 and np.random.random() < 0.25:
-            pc = 1
-        elif tc == 1 and np.random.random() < 0.20:
-            pc = 0
-        elif tc == 2 and np.random.random() < 0.20:
-            pc = 3
-        elif tc == 3 and np.random.random() < 0.18:
-            pc = 2
-        else:
-            pc = tc
-        y_true.append(tc)
-        y_pred.append(pc)
+    dataset = MOABBDataset(dataset_name="BNCI2014_001")
+    # 根据session类别划分train、test
+    splits = dataset.split(by="session")
+    train_dataset = splits["0train"]
+    test_dataset = splits["1test"]
+    # 预处理
+    preprocessors = [
+        PickTypes(eeg=True, verbose=False),
+        Filter(l_freq=4, h_freq=40.0, verbose=False),
+        Rescale(scalings=1e6, verbose=False),
+        Resample(sfreq=128, verbose=False),
+        Preprocessor(exponential_moving_standardize),
+    ]
+    train_dataset = preprocess(train_dataset, preprocessors)
+    test_dataset = preprocess(test_dataset, preprocessors)
+    train_windows = create_windows_from_events(
+        train_dataset,
+        trial_start_offset_samples=0,
+        trial_stop_offset_samples=0,
+        window_size_samples=512,
+        window_stride_samples=512,
+        preload=True,
+    )
+    test_windows = create_windows_from_events(
+        test_dataset,
+        trial_start_offset_samples=0,
+        trial_stop_offset_samples=0,
+        window_size_samples=512,
+        window_stride_samples=512,
+        preload=True,
+    )
+    # 提取 X, y
+    # WindowsDataset to numpy array
+    def dataset_to_xy(dataset):
+        X, y = [], []
+        for x_i, y_i, _ in dataset:
+            X.append(x_i)
+            y.append(y_i)
+        return np.array(X), np.array(y)
 
-    cm = confusion_matrix(np.array(y_true), np.array(y_pred))
-    fig = bd_plot_confusion_matrix(cm, class_names=class_names)
-    plt.savefig("confusion_matrix.png", dpi=100, bbox_inches="tight")
+    # numpy array
+    X_test, y_test = dataset_to_xy(test_windows)
+
+
+    # 定义通道数和时间点数
+    n_channels = 22
+    n_times = 512
+
+    model = EEGNet(
+        n_chans=22,
+        n_outputs=4,
+        n_times=512,               # ← 128Hz × 4s = 512（原值256仅对应2s）
+        sfreq=128,                 # ✅ 无需修改
+        F1=8,                      # ← 显式指定
+        D=2,                       # ← 显式指定
+        F2=16,                     # ← F1×D = 8×2
+        kernel_length=64,          # ← 0.5s @ 128Hz
+        depthwise_kernel_length=16,# ← 深度卷积核长度
+        pool1_kernel_size=4,       # ← 平均池化
+        pool2_kernel_size=8,       # ← 平均池化
+        drop_prob=0.5,             # ← 关键！不是默认的0.25
+        norm_rate=0.25,            # ← MaxNorm约束
+        conv_spatial_max_norm=1,   # ← 空间卷积MaxNorm
+        final_conv_length='auto',  # ← 自动调整输出长度
+    )
+    # 加载模型参数
+    model.load_state_dict(torch.load("models/best_model.pt",weights_only=True))
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+
+    
+
+    with torch.no_grad():
+        y_pred = model(torch.tensor(X_test, dtype=torch.float32).to("mps")).argmax(dim=1).cpu().numpy()
+
+
+    cm = confusion_matrix(y_test, y_pred)
+    class_names = ["Left Hand", "Right Hand", "Feet", "Tongue"]
+    fig = bd_plot_confusion_matrix(
+        cm, 
+        class_names=class_names, 
+        figsize=(10, 8),
+        rotate_row_labels=0,
+        rotate_col_labels=45,  # 旋转列标签，使类别名称水平显示
+        with_f1_score=True # 显示F1分数
+    )
+    fig.tight_layout()
+    fig.savefig("confusion_matrix.png", dpi=100, bbox_inches="tight")
     print("  混淆矩阵已保存: confusion_matrix.png")
+    plt.close(fig)
+
+    # np.diag(cm) — 获取对角线元素（所有正确预测的数量）
     accuracy = np.diag(cm).sum() / cm.sum()
     print(f"\n  整体准确率: {accuracy:.2%}")
-    for i, name in enumerate(class_names):
-        print(f"    {name}: {cm[i, i] / cm[i].sum():.2%}")
-    plt.close(fig)
 
 
 # ============================================================
@@ -304,6 +372,7 @@ def tutorial_eeg_signal_plot():
     raw.filter(l_freq=0.5, h_freq=40.0, verbose=False)
     raw.resample(128, verbose=False)
 
+    # 当前代码中只有一个 figure（通过 plt.subplots 创建）
     fig, axes = plt.subplots(3, 1, figsize=(14, 12))
     data = raw.get_data()
     time = np.arange(data.shape[1]) / raw.info["sfreq"]
@@ -471,7 +540,7 @@ def tutorial_combined_visualization():
 
 if __name__ == "__main__":
     # tutorial_training_curves()        # 训练曲线可视化
-    tutorial_gradient_visualization()  # 梯度/归因可视化 (saliency, integrated_gradients, amplitude_gradients)
-    # tutorial_confusion_matrix()        # 混淆矩阵可视化 (braindecode.visualization.plot_confusion_matrix)
+    # tutorial_gradient_visualization()  # 梯度/归因可视化 (saliency, integrated_gradients, amplitude_gradients)
+    tutorial_confusion_matrix()        # 混淆矩阵可视化 (braindecode.visualization.plot_confusion_matrix)
     # tutorial_eeg_signal_plot()         # EEG 信号可视化
     # tutorial_combined_visualization()  # 综合可视化
