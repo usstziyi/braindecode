@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import mne
+
 from torch.utils.data import DataLoader
 from braindecode.datasets import MOABBDataset
 from braindecode.preprocessing import (
@@ -60,6 +62,8 @@ test_dataset = preprocess(test_dataset, preprocessors)
 print("*"*50)
 print("Creating windows...")
 print("*"*50)
+
+
 train_windows = create_windows_from_events(
     train_dataset,
     trial_start_offset_samples=0,
@@ -119,7 +123,8 @@ print(train_windows_run0_window0[1]) # 3,run0,window0,y:类标签
 
 # tuple第三个元素:crop_inds[i_window_in_trial,i_start_in_trial,i_stop_in_trial]
 print(train_windows_run0_window0[2]) # [0, 384, 896],run0,window0,crop_inds:窗口在trial中的索引范围 
-
+# 第一个窗口的 i_start 等于第一个事件的 sample_offset
+# 也等于第一个 annotation 的 onset × sfreq = 3.00 × 128 = 384
 
 """
 torch化数据
@@ -172,8 +177,8 @@ for batch_X, batch_y, batch_crop_inds in train_loader:
 获取raw数据
 """
 
-train_dataset_run0_raw = train_dataset.datasets[0].raw
-train_windows_run0_raw = train_windows.datasets[0].raw
+train_dataset_run0_raw = train_dataset.datasets[0].raw # train_dataset_run0的raw
+train_windows_run0_raw = train_windows.datasets[0].raw # train_windows_run0的raw
 
 print(type(train_dataset_run0_raw)) # mne.io.array._array.RawArray
 print(type(train_windows_run0_raw)) # mne.io.array._array.RawArray
@@ -191,6 +196,116 @@ print(train_windows_run0_raw.n_times) # 49528
 
 print(train_dataset_run0_raw.ch_names) # ['Fz', 'FC3', 'FC1', 'FCz', 'FC2', 'FC4', 'C5', 'C3', 'C1', 'Cz', 'C2', 'C4', 'C6', 'CP3', 'CP1', 'CPz', 'CP2', 'CP4', 'P1', 'Pz', 'P2', 'POz']
 print(train_windows_run0_raw.ch_names) # ['Fz', 'FC3', 'FC1', 'FCz', 'FC2', 'FC4', 'C5', 'C3', 'C1', 'Cz', 'C2', 'C4', 'C6', 'CP3', 'CP1', 'CPz', 'CP2', 'CP4', 'P1', 'Pz', 'P2', 'POz']
+
+"""
+获取annotations
+"""
+# 获取 annotations 对象
+annotations = train_dataset_run0_raw.annotations
+# 数据集加载时，MOABB 会根据实验范式自动生成 annotations，赋予每个 annotation 正确的 duration。
+
+# 查看基本信息
+print(type(annotations))          # <class 'mne.Annotations'>
+print(len(annotations))           # 注解数量
+print(annotations.description)    # 标签名称列表，如 ['T0', 'T1', 'T2']
+print(annotations.onset)          # 每个注解的起始时间（秒）
+print(annotations.duration)       # 每个注解的持续时间（秒）
+
+# 转换为 DataFrame 方便查看
+df = annotations.to_data_frame()
+print(df)
+
+#                      onset  duration description
+# 0  2008-01-01 00:00:03.000       4.0      tongue
+# 1  2008-01-01 00:00:11.012       4.0        feet
+# 2  2008-01-01 00:00:18.684       4.0  right_hand
+# 3  2008-01-01 00:00:26.492       4.0   left_hand
+# 4  2008-01-01 00:00:34.524       4.0   left_hand
+# 5  2008-01-01 00:00:42.968       4.0  right_hand
+# 6  2008-01-01 00:00:50.636       4.0        feet
+# 7  2008-01-01 00:00:58.836       4.0      tongue
+# 8  2008-01-01 00:01:06.560       4.0  right_hand
+# 9  2008-01-01 00:01:14.552       4.0        feet
+# 10 2008-01-01 00:01:22.176       4.0   left_hand
+
+"""
+                                                trial onset +
+                        trial onset                duration
+
+        |--------------------|------------------------|-----------------------|
+        ^                    ^                        ^                       ^
+
+        |                    |                        |                       |
+   窗口实际起点          刺激开始时刻              刺激理论结束点            窗口实际终点
+(trial_start_offset)      (onset)               (onset+duration)    (onset+duration+stop_offset)
+"""
+
+# annotations.onset (秒) × sfreq       events[:, 0] (采样点) 
+# 3.00                   × 128         384 
+# 11.02                  × 128         1410 
+# 18.69                  × 128         2392 
+# 26.49                  × 128         3391
+
+"""
+获取events (STI通道已被PickTypes(eeg=True)移除, 事件存储在annotations中)
+"""
+# events = mne.find_events(train_dataset_run0_raw)
+# print(events.shape)
+# events_from_annotations() 会丢弃 duration 信息
+events, event_id = mne.events_from_annotations(train_dataset_run0_raw)
+print(events.shape)
+print(event_id)
+
+print(events[0:10]) 
+# (sample_offset, duration, event_id)
+# (事件在数据中的采样点起始位置,事件的持续采样点数,事件的类别)
+# (第 384 个采样点,duration 为 0 时表示瞬时事件,事件类别)
+# events_from_annotations() 会丢弃 duration 信息
+# [[ 384    0    4]
+#  [1410    0    1]
+#  [2392    0    3]
+#  [3391    0    2]
+#  [4419    0    2]
+#  [5500    0    3]
+#  [6481    0    1]
+#  [7531    0    4]
+#  [8520    0    3]
+#  [9543    0    1]]
+import pandas as pd
+print(pd.DataFrame(events, columns=["sample_offset", "duration", "event_id"]))
+
+# events.sample_offset 对应的是 箭头（cue）出现的时刻 ，而非十字准星。
+# 每个 trial (8秒):
+# 0s              2s                          6s          8s
+# ┌───────────────┬───────────────────────────┬────────────┐
+# │   注视期       │       想象期              │   休息期   │
+# │ (crosshair)   │    (arrow + imagery)      │   (rest)   │
+# └───────────────┴───────────────────────────┴────────────┘
+#                 ↑
+#            events.sample_offset
+#            (arrow/cue 出现时刻)
+
+
+# 时间轴:
+# 0s              2s                          6s          8s
+# ┌───────────────┬───────────────────────────┬────────────┐
+# │   注视期       │       想象期               │   休息期    │
+# └───────────────┴───────────────────────────┴────────────┘
+#                 ↑
+#           ┌─────┴──────┐
+#           │ STI 通道电平 │
+#           │ ┌─────────┐ │
+#           │ │         │ │
+#    ───────┘ │         │ └──────────────
+#    (低电平)  │  高电平  │  (低电平)
+#             │ (标记cue)│
+#             └─────────┘
+#               ↑
+#            stim 上升沿
+#            (事件触发点 = events.sample_offset)
+
+
+
 
 
 """

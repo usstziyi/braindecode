@@ -399,9 +399,8 @@ def tutorial_eeg_signal_plot():
         preload=True,
     )
 
-    # train_windows 是 BaseConcatDataset，需要通过 .datasets[0] 访问第一个子数据集
     # EEGWindowsDataset 存储的是 raw 对象，通过 .raw 访问
-    raw = train_windows.datasets[0].raw
+    raw = train_windows.datasets[0].raw # run0的raw
     info = raw.info
     ch_names = raw.info["ch_names"]
     sfreq = raw.info["sfreq"]
@@ -453,27 +452,34 @@ def tutorial_eeg_signal_plot():
         events = mne.find_events(raw)
     except ValueError:
         events, _ = mne.events_from_annotations(raw)
+    # events 是 MNE 格式的事件数组，形状为 (n_events, 3) ，每行格式为 [样本位置, 持续时间, 事件ID]
+
+    print(f"  events shape: {events.shape}")
+
+
+
 
     sfreq = raw.info["sfreq"]
-    n_pre, n_post = int(0.1 * sfreq), int(0.5 * sfreq)
-    n_samples = n_pre + n_post
+    n_pre = int(0.1 * sfreq) # 事件发生 前 100ms 的采样点数（用于基线校准）
+    n_post = int(0.5 * sfreq) # 事件发生 后 500ms 的采样点数（用于捕捉诱发响应）
+    n_samples = n_pre + n_post # 总窗口长度 = 前基线 + 后刺激时间段
     erps = []
-    for ev in events[:50]:
-        s = ev[0] - n_pre
+    for ev in events:
+        s = ev[0] - n_pre # 前移 100ms
         if 0 <= s and s + n_samples <= data.shape[1]:
-            erps.append(data[7, s:s + n_samples])
+            erps.append(data[7, s:s + n_samples]) # 取出从基线段到刺激后 500ms 的连续片段
 
-    # if erps:
-    #     erps = np.array(erps)
-    #     erp_t = np.linspace(-0.1, 0.5, n_samples)
-    #     ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5)
-    #     ax.plot(erp_t, erps.mean(axis=0), "r-", linewidth=2, label="Mean ERP")
-    #     ax.axvline(x=0, color="black", linestyle="--", alpha=0.5, label="Stimulus")
-    #     ax.set_xlabel("Time (s)")
-    #     ax.set_ylabel("Amplitude")
-    #     ax.set_title(f"ERP ({raw.ch_names[7]})")
-    #     ax.legend()
-    #     ax.grid(True, alpha=0.3)
+    if erps:
+        erps = np.array(erps)
+        erp_t = np.linspace(-0.1, 0.5, n_samples)
+        ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5)
+        ax.plot(erp_t, erps.mean(axis=0), "r-", linewidth=2, label="Mean ERP")
+        ax.axvline(x=0, color="black", linestyle="--", alpha=0.5, label="Stimulus")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Amplitude")
+        ax.set_title(f"ERP ({raw.ch_names[7]})")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.savefig("viz_pic/eeg_signal_visualization.png", dpi=150, bbox_inches="tight")
