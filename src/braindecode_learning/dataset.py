@@ -257,7 +257,7 @@ print(events.shape)
 print(event_id)
 
 print(events[0:10]) 
-# (sample_offset, duration, event_id)
+# (sample_offset, duration, event_id) # 此时的sample_offset 已经被+2s
 # (事件在数据中的采样点起始位置,事件的持续采样点数,事件的类别)
 # (第 384 个采样点,duration 为 0 时表示瞬时事件,事件类别)
 # events_from_annotations() 会丢弃 duration 信息
