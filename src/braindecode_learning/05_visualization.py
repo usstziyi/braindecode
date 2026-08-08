@@ -447,21 +447,21 @@ def tutorial_eeg_signal_plot():
     ax.legend(fontsize=7)
     ax.grid(True, alpha=0.3)
 
-    # # 3. ERP
-    # ax = axes[2]
-    # try:
-    #     events = mne.find_events(raw)
-    # except ValueError:
-    #     events, _ = mne.events_from_annotations(raw)
+    # 3. ERP Event-Related Potential
+    ax = axes[2]
+    try:
+        events = mne.find_events(raw)
+    except ValueError:
+        events, _ = mne.events_from_annotations(raw)
 
-    # sfreq = raw.info["sfreq"]
-    # n_pre, n_post = int(0.1 * sfreq), int(0.5 * sfreq)
-    # n_samples = n_pre + n_post
-    # erps = []
-    # for ev in events[:50]:
-    #     s = ev[0] - n_pre
-    #     if 0 <= s and s + n_samples <= data.shape[1]:
-    #         erps.append(data[7, s:s + n_samples])
+    sfreq = raw.info["sfreq"]
+    n_pre, n_post = int(0.1 * sfreq), int(0.5 * sfreq)
+    n_samples = n_pre + n_post
+    erps = []
+    for ev in events[:50]:
+        s = ev[0] - n_pre
+        if 0 <= s and s + n_samples <= data.shape[1]:
+            erps.append(data[7, s:s + n_samples])
 
     # if erps:
     #     erps = np.array(erps)
