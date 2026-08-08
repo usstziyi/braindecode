@@ -120,7 +120,58 @@ print(train_windows_run0_window0[1]) # 3,run0,window0,y:类标签
 # tuple第三个元素:crop_inds[i_window_in_trial,i_start_in_trial,i_stop_in_trial]
 print(train_windows_run0_window0[2]) # [0, 384, 896],run0,window0,crop_inds:窗口在trial中的索引范围 
 
-# 获取raw
+
+"""
+torch化数据
+"""
+# DataLoader 会自动从 train_windows 逐个取数据并组装成 batch
+def custom_collate(batch):
+    # batch: list of tuples (x, y, crop_inds)
+    xs = [item[0] for item in batch]
+    ys = [item[1] for item in batch]
+    crop_inds = [item[2] for item in batch]
+    return (
+        torch.tensor(np.stack(xs)),         # 自动转 tensor
+        torch.tensor(ys),
+        torch.tensor(np.stack(crop_inds))
+    )
+
+def custom_collate_super(batch):
+    batch = torch.utils.data.default_collate(batch)
+    return batch[0], batch[1], torch.tensor(np.stack(batch[2]))
+
+train_loader = DataLoader(
+    train_windows,
+    batch_size=32,
+    shuffle=True,
+    collate_fn=custom_collate,   # 自定义拼接逻辑
+)
+
+for batch_X, batch_y, batch_crop_inds in train_loader:
+    print(batch_X.shape) # tensor(32, 22, 512)
+    print(batch_y.shape) # tensor(32, 1)
+    print(batch_crop_inds.shape) # tensor(32, 3)
+    break
+
+# 或者
+train_loader = DataLoader(
+    train_windows, 
+    batch_size=32, 
+    shuffle=True,
+    # collate_fn=_collate_fn_t,   # 默认拼接逻辑
+)
+
+for batch_X, batch_y, batch_crop_inds in train_loader:
+    print(type(batch_X)) # torch.Tensor
+    print(type(batch_y)) # torch.Tensor
+    print(type(batch_crop_inds)) # list
+    break
+
+
+"""
+获取raw数据
+"""
+
 train_dataset_run0_raw = train_dataset.datasets[0].raw
 train_windows_run0_raw = train_windows.datasets[0].raw
 
@@ -160,3 +211,5 @@ train_windows:所有run的窗口总数=48*512*54=2592
 """
 print(len(train_dataset)) # 2674512=54*49528:所有run的时间点总数
 print(len(train_windows)) # 2592=54*48*512:所有run的窗口总数
+
+
