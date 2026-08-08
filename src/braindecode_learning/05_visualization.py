@@ -449,14 +449,13 @@ def tutorial_eeg_signal_plot():
     # 3. ERP Event-Related Potential
     ax = axes[2]
     try:
-        events = mne.find_events(raw)
+        # stim通道已经被去掉，所以不走find_events
+        events = mne.find_events(raw) # 这里的events的起点是stim时刻的采样点索引
     except ValueError:
-        events, _ = mne.events_from_annotations(raw)
+        events, _ = mne.events_from_annotations(raw) # 这里的events的起点是stim时刻+2s
     # events 是 MNE 格式的事件数组，形状为 (n_events, 3) ，每行格式为 [样本位置, 持续时间, 事件ID]
 
     print(f"  events shape: {events.shape}")
-
-
 
 
     sfreq = raw.info["sfreq"]
@@ -470,9 +469,10 @@ def tutorial_eeg_signal_plot():
             erps.append(data[7, s:s + n_samples]) # 取出从基线段到刺激后 500ms 的连续片段
 
     if erps:
-        erps = np.array(erps)
-        erp_t = np.linspace(-0.1, 0.5, n_samples)
-        ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5)
+        erps = np.array(erps) 
+        erp_t = np.linspace(-0.1, 0.5, n_samples) # (n_samples,)
+        # (n_events, n_samples) -> (n_samples, n_events)
+        ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5, label="ERP")
         ax.plot(erp_t, erps.mean(axis=0), "r-", linewidth=2, label="Mean ERP")
         ax.axvline(x=0, color="black", linestyle="--", alpha=0.5, label="Stimulus")
         ax.set_xlabel("Time (s)")
