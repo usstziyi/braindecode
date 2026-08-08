@@ -101,7 +101,7 @@ train_windows_run0 = train_windows.datasets[0] # EEGWindowsDataset：第一个ru
 print(type(train_dataset_run0)) # RawDataset
 print(type(train_windows_run0)) # EEGWindowsDataset
 
-print(len(train_dataset_run0)) # 128,每个run有49528个时间点，按照128hz采样率计算，总时长为49528/128=386秒
+print(len(train_dataset_run0)) # 49528,每个run有49528个时间点，按照128hz采样率计算，总时长为49528/128=386秒
 print(len(train_windows_run0)) # 48,每个run划分出48个窗口，每个窗口有512个时间点
 
 train_dataset_run0_time0 = train_dataset_run0[0] # 第一个最小单位(时间点)
@@ -305,14 +305,18 @@ print(pd.DataFrame(events, columns=["sample_offset", "duration", "event_id"]))
 #            (事件触发点 = events.sample_offset)
 
 
-
+"""
+train_dataset:所有run的时间点总数=49528*54=2674512
+train_windows:所有run的窗口总数=48*512*54=2592
+"""
+print(len(train_dataset)) # 2674512=54*49528:所有run的时间点总数
+print(len(train_windows)) # 2592=54*48*512:所有run的窗口总数
 
 
 """
 train_dataset[i]:第 i 个 时间点 的 数据,tuple:(X, y)
 train_windows[i]:第 i 个 窗口 的 数据,tuple:(X, y, crop_inds)
 """
-
 print(type(train_dataset[0])) # tuple
 print(type(train_windows[0])) # tuple
 
@@ -320,11 +324,6 @@ print(len(train_dataset[0])) # 2,run0的第一个最小单位(时间点)的tuple
 print(len(train_windows[0])) # 3,run0的第一个最小单位(窗口)的tuple:(X, y, crop_inds)
 
 
-"""
-train_dataset:所有run的时间点总数=49528*54=2674512
-train_windows:所有run的窗口总数=48*512*54=2592
-"""
-print(len(train_dataset)) # 2674512=54*49528:所有run的时间点总数
-print(len(train_windows)) # 2592=54*48*512:所有run的窗口总数
+
 
 

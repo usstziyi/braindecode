@@ -399,22 +399,17 @@ def tutorial_eeg_signal_plot():
         preload=True,
     )
 
-    # EEGWindowsDataset 存储的是 raw 对象，通过 .raw 访问
-    raw = train_windows.datasets[0].raw # run0的raw
+    # 以下研究对象：第0个run
+    train_dataset_run0 = train_dataset.datasets[0]
+    raw = train_dataset_run0.raw # run0的raw
+    data = raw.get_data() # run0的data(22, 49528)
     info = raw.info
     ch_names = raw.info["ch_names"]
     sfreq = raw.info["sfreq"]
-
-    # data: numpy array(22, 512)
-    # y: numpy array(1,)
-    data, y , _ = train_windows[0]
-    print(f"  data range (µV): [{data.min():.6f}, {data.max():.6f}]")
     n_channels = data.shape[0] # 22
-    n_times = data.shape[1] # 512
-
-    n_show = 8
-    # 用微伏数据计算通道间距
-    step = abs(data).max() * 1.5
+    n_times = data.shape[1] # 49528
+    step = abs(data).max() * 1.5 # 振幅范围
+    print(f"  data range (µV): [{data.min():.6f}, {data.max():.6f}]")
     print(f"  step: {step:.6f}")
 
     # 当前代码中只有一个 figure（通过 plt.subplots 创建）
@@ -422,14 +417,17 @@ def tutorial_eeg_signal_plot():
 
     # 1. 原始 EEG
     ax = axes[0]
-    for i in range(n_show):
-        ax.plot(np.arange(0, n_times), data[i] + i * step, linewidth=0.5)
+    # 绘制前8个通道,前5000个样本的原始信号信号
+    for i in range(8):
+        # data(22, 49528)
+        # np.arange(0, 5000) 是 (5000,) 1D
+        # data[i, :5000] 是 (5000,) 1D
+        ax.plot(np.arange(0, 5000), data[i, :5000] + i * step, linewidth=0.5)
         ax.axhline(y=i * step, color="gray", alpha=0.3, linewidth=0.5)
-    # ax.set_xlim(0, 5)
     ax.set_xlabel("Time (s)")
     ax.set_title("Raw EEG Signal (First 5s, 8 Channels)")
-    ax.set_yticks([i * step for i in range(n_show)])
-    ax.set_yticklabels(ch_names[:n_show])
+    ax.set_yticks([i * step for i in range(8)])
+    ax.set_yticklabels(ch_names[:8])
 
 
 
@@ -448,31 +446,35 @@ def tutorial_eeg_signal_plot():
 
     # 3. ERP Event-Related Potential
     ax = axes[2]
-    try:
-        # stim通道已经被去掉，所以不走find_events
-        events = mne.find_events(raw) # 这里的events的起点是stim时刻的采样点索引
-    except ValueError:
-        events, _ = mne.events_from_annotations(raw) # 这里的events的起点是stim时刻+2s
+
+    # (48, 3)
     # events 是 MNE 格式的事件数组，形状为 (n_events, 3) ，每行格式为 [样本位置, 持续时间, 事件ID]
+    events, _ = mne.events_from_annotations(raw) # 这里的events的起点是stim时刻+2s
+    # events = mne.find_events(raw) # 这里的events的起点是stim时刻的采样点索引
+    
 
-    print(f"  events shape: {events.shape}")
 
-
-    sfreq = raw.info["sfreq"]
-    n_pre = int(0.1 * sfreq) # 事件发生 前 100ms 的采样点数（用于基线校准）
-    n_post = int(0.5 * sfreq) # 事件发生 后 500ms 的采样点数（用于捕捉诱发响应）
-    n_samples = n_pre + n_post # 总窗口长度 = 前基线 + 后刺激时间段
+    n_pre = int(0.1 * sfreq) # 事件发生 前 100ms 的采样点数（用于基线校准）= 128 * 0.1 = 12
+    n_post = int(0.5 * sfreq) # 事件发生 后 500ms 的采样点数（用于捕捉诱发响应）= 128 * 0.5 = 64
+    n_samples = n_pre + n_post # 总窗口长度 = 前基线 + 后刺激时间段 = 12 + 64 = 76 samples
     erps = []
+    # (22,512)
+    print(f"  data shape: {data.shape}")
     for ev in events:
         s = ev[0] - n_pre # 前移 100ms
         if 0 <= s and s + n_samples <= data.shape[1]:
             erps.append(data[7, s:s + n_samples]) # 取出从基线段到刺激后 500ms 的连续片段
 
     if erps:
+        # erps(48, 76)
         erps = np.array(erps) 
+        print(f"  erps shape: {erps.shape}") # (48, 76)
         erp_t = np.linspace(-0.1, 0.5, n_samples) # (n_samples,)
-        # (n_events, n_samples) -> (n_samples, n_events)
-        ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5, label="ERP")
+        print(f"  erp_t shape: {erp_t.shape}") # (76,)
+        # 当使用 ax.plot(x, y_data) 时，matplotlib 会将 y_data 的每一列当作一条独立的线来绘制。
+        # 较新版本（≥3.6）：plot(x, y_2d) 要求 x.shape[0] == y.shape[0]，
+        # 即 x 的长度必须等于 y 的行数，然后按列画曲线。
+        ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5)
         ax.plot(erp_t, erps.mean(axis=0), "r-", linewidth=2, label="Mean ERP")
         ax.axvline(x=0, color="black", linestyle="--", alpha=0.5, label="Stimulus")
         ax.set_xlabel("Time (s)")

@@ -55,12 +55,36 @@ print(events.shape) # (48, 3)
 
 import pandas as pd
 print(pd.DataFrame(events, columns=["sample_offset", "duration", "event_id"]))
+# 采样率250hz
+#     sample_offset  duration  event_id
+# 0             250         0         4  -> 第1秒
+# 1            2253         0         3
+# 2            4171         0         2
+# 3            6123         0         1
+# 4            8131         0         1
+# 5           10242         0         2
+# 6           12159         0         3
+# 7           14209         0         4
+# 8           16140         0         2
+# 9           18138         0         3
 
 
 # 此时annotations的onset是原始数据的stim时刻+2s=3s
 annotations = train_dataset_run0_raw.annotations
 df = annotations.to_data_frame()
 print(df)
+
+#                      onset  duration description
+# 0  2008-01-01 00:00:03.000       4.0      tongue  -> 第3秒
+# 1  2008-01-01 00:00:11.012       4.0        feet
+# 2  2008-01-01 00:00:18.684       4.0  right_hand
+# 3  2008-01-01 00:00:26.492       4.0   left_hand
+# 4  2008-01-01 00:00:34.524       4.0   left_hand
+# 5  2008-01-01 00:00:42.968       4.0  right_hand
+# 6  2008-01-01 00:00:50.636       4.0        feet
+# 7  2008-01-01 00:00:58.836       4.0      tongue
+# 8  2008-01-01 00:01:06.560       4.0  right_hand
+# 9  2008-01-01 00:01:14.552       4.0        feet
 
 
 
