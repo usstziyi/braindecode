@@ -585,8 +585,18 @@ def tutorial_topomap_and_confusion():
 
     # --- 5.2 投影到 2D 头皮 ---
     print("  → project_to_topomap ...")
+    # data 提供 数值 ， chs_info 提供 空间坐标 ， res 决定 输出精度
+    # data (通道值)  +  chs_info (3D坐标)  +  res (网格分辨率)
+    #     ↓                ↓                    ↓
+    # MNE 球体拟合 → 3D坐标投影到2D平面 (pos2d)
+    #     ↓
+    # Clough-Tocher 三角剖分插值
+    #     ↓
+    # 输出 (res, res) 的 2D 头皮热力图
+    # （头皮外区域填充 NaN）
     topomap = project_to_topomap(channel_attr, chs_info, res=64)
-    print(f"  topomap shape: {topomap.shape}")
+    print(f"  topomap shape: {topomap.shape}") # (64, 64)
+    # 统计 topomap 中有多少个有效（非 NaN）网格单元
     print(f"  valid cells: {np.sum(~np.isnan(topomap))}")
 
     # --- 5.3 可视化 ---
@@ -777,32 +787,32 @@ def tutorial_sanity_and_metrics():
 # ============================================================
 
 if __name__ == "__main__":
-    print("╔══════════════════════════════════════════════════════════╗")
-    print("║  Braindecode Visualization — 循序渐进教程              ║")
-    print("║  输出目录: " + str(OUT_DIR))
-    print("╚══════════════════════════════════════════════════════════╝")
+    # print("╔══════════════════════════════════════════════════════════╗")
+    # print("║  Braindecode Visualization — 循序渐进教程              ║")
+    # print("║  输出目录: " + str(OUT_DIR))
+    # print("╚══════════════════════════════════════════════════════════╝")
 
-    print("\n  建议学习顺序:")
-    print("    Tutorial 1 → Saliency Map              (15 min)")
-    print("    Tutorial 2 → Integrated Gradients     (20 min)")
-    print("    Tutorial 3 → 高级归因方法对比          (20 min)")
-    print("    Tutorial 4 → 频域 / 反卷积 / 振幅梯度  (15 min)")
-    print("    Tutorial 5 → 地形图投影 & 混淆矩阵     (15 min)")
-    print("    Tutorial 6 → 健全性检查 & 指标         (20 min)")
+    # print("\n  建议学习顺序:")
+    # print("    Tutorial 1 → Saliency Map              (15 min)")
+    # print("    Tutorial 2 → Integrated Gradients     (20 min)")
+    # print("    Tutorial 3 → 高级归因方法对比          (20 min)")
+    # print("    Tutorial 4 → 频域 / 反卷积 / 振幅梯度  (15 min)")
+    # print("    Tutorial 5 → 地形图投影 & 混淆矩阵     (15 min)")
+    # print("    Tutorial 6 → 健全性检查 & 指标         (20 min)")
 
-    tutorial_saliency()
-    tutorial_integrated_gradients()
-    tutorial_advanced_attribution()
-    tutorial_frequency_and_gradients()
+    # tutorial_saliency()
+    # tutorial_integrated_gradients()
+    # tutorial_advanced_attribution()
+    # tutorial_frequency_and_gradients()
     tutorial_topomap_and_confusion()
-    tutorial_sanity_and_metrics()
+    # tutorial_sanity_and_metrics()
 
-    print("\n" + "=" * 60)
-    print("🎉 全部教程执行完成!")
-    print(f"  所有图片已保存至: {OUT_DIR}")
-    print("\n  下一步建议:")
-    print("    1. 用真实 MOABB 数据替换模拟数据 (见 01_moabb_dataset.py)")
-    print("    2. 用训练好的 EEGClassifier 替换未训练的 EEGNet")
-    print("    3. 阅读 braindecode 官方示例:")
-    print("       https://braindecode.org/stable/auto_examples/")
-    print("=" * 60)
+    # print("\n" + "=" * 60)
+    # print("🎉 全部教程执行完成!")
+    # print(f"  所有图片已保存至: {OUT_DIR}")
+    # print("\n  下一步建议:")
+    # print("    1. 用真实 MOABB 数据替换模拟数据 (见 01_moabb_dataset.py)")
+    # print("    2. 用训练好的 EEGClassifier 替换未训练的 EEGNet")
+    # print("    3. 阅读 braindecode 官方示例:")
+    # print("       https://braindecode.org/stable/auto_examples/")
+    # print("=" * 60)

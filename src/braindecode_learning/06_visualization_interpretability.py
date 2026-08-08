@@ -50,17 +50,7 @@ def setup_environment():
     x_tensor = torch.tensor(x)
     y_tensor = torch.tensor(y)
     
-    # 2. 创建模型 (使用 EEGNet)
-    from braindecode.models import EEGNet
-    
-    # 创建模型 (注意: 需要 chs_info 用于地形图投影)
-    model = EEGNet(
-        n_chans=n_channels,
-        n_outputs=n_classes,
-        n_times=n_times,
-    )
-    
-    # 为模型添加模拟的通道信息 (真实数据中从 mne.Info 获取)
+    # 2. 创建模拟通道信息 (真实数据中从 mne.Info 获取)
     # 简化: 使用 22 个电极的标准 10-20 系统位置
     ch_names = [
         'Fp1', 'Fp2', 'F7', 'F3', 'F4', 'F8',
@@ -86,14 +76,22 @@ def setup_environment():
         loc[2] = 0.0
         chs_info.append({
             'ch_name': name,
-            'loc': loc,  # 注意: 使用 'loc' 而不是 'pos'
+            'loc': loc,
             'kind': 1  # EEG
         })
     
-    # 设置模型的 chs_info (用于 project_to_topomap)
-    model.chs_info = chs_info
+    # 3. 创建模型 (使用 EEGNet)
+    from braindecode.models import EEGNet
     
-    # 3. 进行一次前向传播 (初始化参数)
+    # 将 chs_info 传入构造函数 (chs_info 是只读属性, 必须在初始化时设置)
+    model = EEGNet(
+        n_chans=n_channels,
+        n_outputs=n_classes,
+        n_times=n_times,
+        chs_info=chs_info,
+    )
+    
+    # 4. 进行一次前向传播 (初始化参数)
     model.eval()
     with torch.no_grad():
         output = model(x_tensor)
@@ -663,7 +661,7 @@ def tutorial_confusion_matrix():
         confusion_mat,
         class_names=class_names,
         with_f1_score=True,  # 显示 F1 分数
-        colormap="Oranges",
+        colormap=plt.cm.Oranges,
     )
     fig_braindecode.savefig("confusion_matrix_braindecode.png", dpi=100, bbox_inches="tight")
     print(f"  ✅ Braindecode 增强版已保存: confusion_matrix_braindecode.png")

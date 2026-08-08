@@ -522,6 +522,7 @@ def tutorial_combined_visualization():
     # 3. 地形图示意
     ax = fig.add_subplot(3, 3, 3)
     theta = np.linspace(0, 2 * np.pi, 100)
+    # 这行代码用 参数方程 在子图上绘制一个 单位圆 （半径=1），作为头皮拓扑图（topomap）的 外轮廓边界 。
     ax.plot(np.cos(theta), np.sin(theta), "k-", linewidth=2)
     for a in np.linspace(0, 2 * np.pi, 22, endpoint=False):
         ax.scatter(0.7 * np.cos(a), 0.7 * np.sin(a), c=[plt.cm.RdYlBu(np.random.rand())], s=100, edgecolors="black")
