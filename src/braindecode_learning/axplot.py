@@ -14,6 +14,9 @@ y_data = np.array([
     0.8 * np.cos(0.5*x)  # 半频余弦
 ])
 
+y_data_mean = y_data.mean(axis=0)
+print(y_data_mean.shape)
+
 
 
 # 创建图形

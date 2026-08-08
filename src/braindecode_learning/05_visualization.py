@@ -475,6 +475,7 @@ def tutorial_eeg_signal_plot():
         # 较新版本（≥3.6）：plot(x, y_2d) 要求 x.shape[0] == y.shape[0]，
         # 即 x 的长度必须等于 y 的行数，然后按列画曲线。
         ax.plot(erp_t, erps.T, alpha=0.1, color="blue", linewidth=0.5)
+        # mean() 会压缩一个维度
         ax.plot(erp_t, erps.mean(axis=0), "r-", linewidth=2, label="Mean ERP")
         ax.axvline(x=0, color="black", linestyle="--", alpha=0.5, label="Stimulus")
         ax.set_xlabel("Time (s)")
